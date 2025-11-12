@@ -95,6 +95,49 @@ let create ~source_file ~compilation_dir ~producer () =
   in
   Dwarf_world.add_die world result_type;
 
+  (* Common 3-tuples for 3D coordinates, triples, etc. *)
+  let int_int_int_tuple = Dwarf_world.create_tuple_type
+    ~name:"int * int * int"
+    ~field_types:[
+      type_offsets.ocaml_int;
+      type_offsets.ocaml_int;
+      type_offsets.ocaml_int
+    ]
+  in
+  Dwarf_world.add_die world int_int_int_tuple;
+
+  (* float * float * float for 3D coordinates *)
+  let float_float_float_tuple = Dwarf_world.create_tuple_type
+    ~name:"float * float * float"
+    ~field_types:[
+      type_offsets.ocaml_float;
+      type_offsets.ocaml_float;
+      type_offsets.ocaml_float
+    ]
+  in
+  Dwarf_world.add_die world float_float_float_tuple;
+
+  (* Generic list type: [] | head :: tail
+     Simplified representation showing cons cell structure *)
+  let list_type = Dwarf_world.create_variant_type
+    ~name:"list"
+    ~variants:[
+      ("[]", None);
+      ("::", Some type_offsets.ocaml_value)
+    ]
+  in
+  Dwarf_world.add_die world list_type;
+
+  (* int list *)
+  let int_list_type = Dwarf_world.create_variant_type
+    ~name:"int list"
+    ~variants:[
+      ("[]", None);
+      ("::", Some type_offsets.ocaml_int)
+    ]
+  in
+  Dwarf_world.add_die world int_list_type;
+
   { source_file; world; current_function = None }
 
 let finalize_current_function t =
