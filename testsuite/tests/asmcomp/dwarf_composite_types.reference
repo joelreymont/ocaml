@@ -1,0 +1,6 @@
+int*int: 42,24
+int*float: 10,3.14
+float*float: 1.5,2.5
+int option: Some 123
+option: Some test
+result: Ok 42
