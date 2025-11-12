@@ -35,9 +35,65 @@ let create ~source_file ~compilation_dir ~producer () =
     ()
   in
 
-  (* Add standard OCaml type DIEs (int, value, etc.)
+  (* Add standard OCaml type DIEs (int, float, char, bool, string, unit, value)
      These will be the first DIEs after the compilation unit DIE *)
-  let _type_offsets = Dwarf_world.add_standard_types world in
+  let type_offsets = Dwarf_world.add_standard_types world in
+
+  (* Add commonly used composite types for better debugging experience *)
+  (* These types are frequently used in OCaml programs and having them
+     predefined improves the debugging experience *)
+
+  (* Common tuple: int * int (coordinates, pairs, etc.) *)
+  let int_int_tuple = Dwarf_world.create_tuple_type
+    ~name:"int * int"
+    ~field_types:[type_offsets.ocaml_int; type_offsets.ocaml_int]
+  in
+  Dwarf_world.add_die world int_int_tuple;
+
+  (* Common tuple: int * float (mixed numeric pairs) *)
+  let int_float_tuple = Dwarf_world.create_tuple_type
+    ~name:"int * float"
+    ~field_types:[type_offsets.ocaml_int; type_offsets.ocaml_float]
+  in
+  Dwarf_world.add_die world int_float_tuple;
+
+  (* Common tuple: float * float (2D points, etc.) *)
+  let float_float_tuple = Dwarf_world.create_tuple_type
+    ~name:"float * float"
+    ~field_types:[type_offsets.ocaml_float; type_offsets.ocaml_float]
+  in
+  Dwarf_world.add_die world float_float_tuple;
+
+  (* Generic option type: None | Some of value
+     This represents option<'a> where 'a is unknown *)
+  let option_type = Dwarf_world.create_variant_type
+    ~name:"option"
+    ~variants:[
+      ("None", None);
+      ("Some", Some type_offsets.ocaml_value)
+    ]
+  in
+  Dwarf_world.add_die world option_type;
+
+  (* int option: None | Some of int *)
+  let int_option_type = Dwarf_world.create_variant_type
+    ~name:"int option"
+    ~variants:[
+      ("None", None);
+      ("Some", Some type_offsets.ocaml_int)
+    ]
+  in
+  Dwarf_world.add_die world int_option_type;
+
+  (* Generic result type: Ok of value | Error of string *)
+  let result_type = Dwarf_world.create_variant_type
+    ~name:"result"
+    ~variants:[
+      ("Ok", Some type_offsets.ocaml_value);
+      ("Error", Some type_offsets.ocaml_string)
+    ]
+  in
+  Dwarf_world.add_die world result_type;
 
   { source_file; world; current_function = None }
 

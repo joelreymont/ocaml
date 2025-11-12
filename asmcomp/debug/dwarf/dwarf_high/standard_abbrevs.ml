@@ -131,6 +131,60 @@ let standard_table : standard_entry list = [
       (DW_AT_external, DW_FORM_flag_present);
     ];
   };
+
+  (* Code 9: Structure type (for tuples, records) *)
+  {
+    code = 9;
+    tag = DW_TAG_structure_type;
+    has_children = true;
+    attributes = [
+      (DW_AT_name, DW_FORM_strp);
+      (DW_AT_byte_size, DW_FORM_data1);
+    ];
+  };
+
+  (* Code 10: Member (struct/union field) *)
+  {
+    code = 10;
+    tag = DW_TAG_member;
+    has_children = false;
+    attributes = [
+      (DW_AT_name, DW_FORM_strp);
+      (DW_AT_type, DW_FORM_ref4);
+      (DW_AT_data_member_location, DW_FORM_data1);
+    ];
+  };
+
+  (* Code 11: Union type (for variant payloads) *)
+  {
+    code = 11;
+    tag = DW_TAG_union_type;
+    has_children = true;
+    attributes = [
+      (DW_AT_name, DW_FORM_strp);
+      (DW_AT_byte_size, DW_FORM_data1);
+    ];
+  };
+
+  (* Code 12: Array type *)
+  {
+    code = 12;
+    tag = DW_TAG_array_type;
+    has_children = true;
+    attributes = [
+      (DW_AT_type, DW_FORM_ref4);
+    ];
+  };
+
+  (* Code 13: Subrange type (array dimension) *)
+  {
+    code = 13;
+    tag = DW_TAG_subrange_type;
+    has_children = false;
+    attributes = [
+      (DW_AT_upper_bound, DW_FORM_data4);
+    ];
+  };
 ]
 
 (** Get the abbreviation code for a DIE based on its signature.
