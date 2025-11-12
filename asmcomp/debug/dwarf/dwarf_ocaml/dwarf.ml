@@ -268,6 +268,39 @@ let create ~source_file ~compilation_dir ~producer () =
   in
   Dwarf_world.add_die world int_int_int_int_tuple;
 
+  (* Additional useful tuple combinations *)
+
+  (* bool * bool - boolean pairs, flags *)
+  let bool_bool_tuple = Dwarf_world.create_tuple_type
+    ~name:"bool * bool"
+    ~field_types:[type_offsets.ocaml_bool; type_offsets.ocaml_bool]
+  in
+  Dwarf_world.add_die world bool_bool_tuple;
+
+  (* int * string - labeled integers, error messages *)
+  let int_string_tuple = Dwarf_world.create_tuple_type
+    ~name:"int * string"
+    ~field_types:[type_offsets.ocaml_int; type_offsets.ocaml_string]
+  in
+  Dwarf_world.add_die world int_string_tuple;
+
+  (* float * int - numeric computations with counts *)
+  let float_int_tuple = Dwarf_world.create_tuple_type
+    ~name:"float * int"
+    ~field_types:[type_offsets.ocaml_float; type_offsets.ocaml_int]
+  in
+  Dwarf_world.add_die world float_int_tuple;
+
+  (* unit option - for optional side effects *)
+  let unit_option_type = Dwarf_world.create_variant_type
+    ~name:"unit option"
+    ~variants:[
+      ("None", None);
+      ("Some", Some type_offsets.ocaml_unit)
+    ]
+  in
+  Dwarf_world.add_die world unit_option_type;
+
   { source_file; world; current_function = None }
 
 let finalize_current_function t =
