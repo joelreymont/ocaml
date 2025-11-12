@@ -73,9 +73,9 @@ Extended standard abbreviation codes to support composite types:
 
 ### Automatic Composite Type Generation ✅
 **Status**: COMPLETE
-**Commits**: 4f0a367c, 93f0de68, 685b1375
+**Commits**: 4f0a367c, 93f0de68, 685b1375, 1576c7a0
 
-Implemented automatic generation of 14 commonly-used composite types:
+Implemented automatic generation of 19 commonly-used composite types:
 
 **Tuple Types (5)**:
 - `int * int` - pairs, coordinates
@@ -99,27 +99,34 @@ Implemented automatic generation of 14 commonly-used composite types:
 **Result Type (1)**:
 - `result` - Ok/Error result type
 
+**Reference Types (5)**:
+- `int ref` - mutable int reference
+- `string ref` - mutable string reference
+- `bool ref` - mutable bool reference
+- `float ref` - mutable float reference
+- `ref` - generic reference type
+
 These types are automatically available in every compilation unit for improved debugging experience.
 
 **Files Modified**:
-- `asmcomp/debug/dwarf/dwarf_ocaml/dwarf.ml` (+153 lines)
+- `asmcomp/debug/dwarf/dwarf_ocaml/dwarf.ml` (+191 lines)
 
 **DWARF Verification**:
 ```bash
 $ readelf --debug-dump=info test.o | grep "DW_TAG_structure_type"
-# Shows all 14 composite types correctly
+# Shows all 19 composite types correctly
 ```
 
 ### Test Suite ✅
 **Status**: COMPLETE
-**Commits**: 48950545, bcfc4b2e
+**Commits**: 48950545, bcfc4b2e, 429043e9
 
 Created comprehensive ocamltest-based test suite:
 
 **Test Files**:
 1. `testsuite/tests/asmcomp/dwarf_composite_types.ml`
-   - Tests runtime behavior of all 14 automatic types
-   - Includes 2-tuples, 3-tuples, options, lists, result
+   - Tests runtime behavior of all 19 automatic types
+   - Includes 2-tuples, 3-tuples, options, lists, result, refs
    - Verifies output against reference file
 
 2. `testsuite/tests/asmcomp/dwarf_types_present.ml`
@@ -139,14 +146,19 @@ Created comprehensive ocamltest-based test suite:
 - Composite type infrastructure (all major types)
 - Type cache system
 - Standard abbreviation codes (13 codes)
-- Automatic common type generation (14 types)
+- Automatic common type generation (19 types)
 - Comprehensive test suite
 - All code committed and pushed
 
 ### Immediate Value Delivered
 The implementation provides immediate debugging value:
 - 7 primitive types with correct encodings
-- 14 commonly-used composite types automatically available
+- 19 commonly-used composite types automatically available
+  - 5 tuple types (2D and 3D coordinates)
+  - 5 option types (generic and specialized)
+  - 3 list types (generic and specialized)
+  - 1 result type
+  - 5 reference types (mutable containers)
 - Proper DWARF structure for debuggers (GDB, LLDB)
 - Full compiler builds successfully
 - All tests passing
