@@ -4,9 +4,10 @@
  flags = "-g";
 *)
 
-(* Test simple function compilation *)
+(* Test basic compilation with DWARF enabled *)
 
 let add x y = x + y
 
 let () =
-  Printf.printf "Result: %d\n" (add 10 20)
+  print_int (add 10 20);
+  print_newline ()
