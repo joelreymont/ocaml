@@ -1,6 +1,6 @@
 (* TEST
  native;
- env = "OCAMLPARAM=dwarf_fidelity=enhanced,_";
+ set OCAMLPARAM = "dwarf_fidelity=enhanced,_";
  flags = "-g";
 *)
 
@@ -12,7 +12,7 @@ let test_primitives () =
   let c = 'X' in
   let b = true in
   let s = "hello" in
-  let u = () in
+  let _u = () in
   Printf.printf "%d %.2f %c %b %s\n" i f c b s
 
 let () = test_primitives ()

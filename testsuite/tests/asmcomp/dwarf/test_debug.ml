@@ -1,6 +1,6 @@
 (* TEST
  native;
- env = "OCAMLPARAM=dwarf_fidelity=enhanced,_";
+ set OCAMLPARAM = "dwarf_fidelity=enhanced,_";
  flags = "-g";
 *)
 
@@ -36,7 +36,7 @@ let () =
   let x = 10 in
   let y = 20 in
   let sum = add x y in
-  let result = multiply_and_add 3 4 5 in
+  let _result = multiply_and_add 3 4 5 in
   let fact = factorial 5 in
   Printf.printf "factorial(5) = %d\n" fact;
   let desc = describe_number sum in

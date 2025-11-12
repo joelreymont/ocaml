@@ -1,6 +1,6 @@
 (* TEST
  native;
- env = "OCAMLPARAM=dwarf_fidelity=enhanced,_";
+ set OCAMLPARAM = "dwarf_fidelity=enhanced,_";
  flags = "-g";
 *)
 
