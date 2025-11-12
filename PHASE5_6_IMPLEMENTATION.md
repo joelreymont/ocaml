@@ -144,6 +144,32 @@ Created comprehensive ocamltest-based test suite:
 - Following ocamltest format (no shell scripts)
 - Short, focused tests as requested
 
+### Function Parameter Tracking ✅
+**Status**: ALREADY IMPLEMENTED
+**Commit**: 389971d3 (tests added)
+
+Function parameter tracking is functional in the existing codebase:
+
+**Implementation**:
+- Each function parameter generates a `DW_TAG_formal_parameter` DIE
+- Parameters tracked with physical locations (registers/stack)
+- Location expressions use `DW_OP_reg*` and `DW_OP_fbreg`
+- Compatible with GDB and LLDB debuggers
+
+**Limitations**:
+- Parameter names show as "R" (register identifier), not source names
+- All parameters currently reference generic `ocaml_value` type
+- Source-level names lost during compilation pipeline
+
+**Test File**:
+- `testsuite/tests/asmcomp/dwarf_parameters.ml`
+  - Tests 2-parameter, 3-parameter, and higher-order functions
+  - Verifies formal parameter DIEs generated correctly
+
+**Architecture Support**:
+- x86-64 (amd64/emit.mlp)
+- ARM64 (arm64/emit.mlp)
+
 ## Current Status
 
 ### Completed ✅
@@ -152,6 +178,7 @@ Created comprehensive ocamltest-based test suite:
 - Type cache system
 - Standard abbreviation codes (13 codes)
 - Automatic common type generation (24 types)
+- Function parameter tracking (already implemented)
 - Comprehensive test suite
 - All code committed and pushed
 
@@ -164,6 +191,10 @@ The implementation provides immediate debugging value:
   - 4 list types (int, string, float, generic)
   - 1 result type
   - 5 reference types (mutable containers)
+- Function parameter tracking with location expressions
+  - Parameters visible in debuggers
+  - Register and stack locations tracked
+  - Compatible with GDB `info args` and LLDB `frame variable`
 - Proper DWARF structure for debuggers (GDB, LLDB)
 - Full compiler builds successfully
 - All tests passing
