@@ -108,6 +108,25 @@ let emit_dwarf_parameter ~name ~reg ~start_addr ~end_addr =
       ~is_parameter:true
       ()
 
+(* Track a local variable's location in DWARF *)
+let emit_dwarf_local_variable ~name ~reg ~start_addr ~end_addr =
+  if Dwarf_flags.is_dwarf_enabled () && name <> "" then
+    let location_kind = reg_location_to_dwarf_kind reg.Reg.loc in
+    let scope = { Variable_location.start_address = start_addr;
+                  end_address = end_addr } in
+    let location = { Variable_location.scope; kind = location_kind } in
+    Emitaux.Dwarf_helpers.add_variable
+      ~name
+      ~location
+      ~is_parameter:false
+      ()
+
+(* Track which variables we've already emitted to avoid duplicates *)
+let emitted_locals = Hashtbl.create 32
+
+let reset_local_tracking () =
+  Hashtbl.clear emitted_locals
+
 (* Object types *)
 
 let emit_label_type lbl ty =
@@ -801,6 +820,17 @@ let emit_instr env i =
               `	ldr	{emit_reg dst}, {emit_stack env src}\n`
           | _ ->
               assert false
+        end;
+        (* Track local variables: if destination has a name and we haven't tracked it yet *)
+        if Dwarf_flags.is_dwarf_enabled () then begin
+          let name = Reg.name dst in
+          if name <> "" && not (Hashtbl.mem emitted_locals name) then begin
+            Hashtbl.add emitted_locals name true;
+            let start_addr = Code_address.from_label (env.f.fun_name) in
+            let end_label = env.f.fun_name ^ "_end" in
+            let end_addr = Code_address.from_label end_label in
+            emit_dwarf_local_variable ~name ~reg:dst ~start_addr ~end_addr
+          end
         end
     | Lop(Ispecific Imove32) ->
         let src = i.arg.(0) and dst = i.res.(0) in
@@ -1219,6 +1249,7 @@ let emit_all env i =
 
 let fundecl fundecl =
   let env = mk_env fundecl in
+  reset_local_tracking ();  (* Reset local variable tracking for new function *)
   emit_named_text_section fundecl.fun_name;
   `	.align	3\n`;
   `	.globl	{emit_symbol fundecl.fun_name}\n`;

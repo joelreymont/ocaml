@@ -580,7 +580,7 @@ let emit t =
     debug_line = line_bytes;
     debug_loc =
       if Location_list_table.is_empty t.location_lists then None
-      else Some (emit_debug_loc t)
+      else Some (emit_debug_loc t);
     debug_ranges =
       if Range_list_table.is_empty t.range_lists then None
       else Some (Bytes.create 0); (* Placeholder *)

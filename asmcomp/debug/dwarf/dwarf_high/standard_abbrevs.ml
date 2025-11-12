@@ -131,6 +131,29 @@ let standard_table : standard_entry list = [
       (DW_AT_external, DW_FORM_flag_present);
     ];
   };
+
+  (* Code 9: Variable (local variable without type) *)
+  {
+    code = 9;
+    tag = DW_TAG_variable;
+    has_children = false;
+    attributes = [
+      (DW_AT_name, DW_FORM_strp);
+      (DW_AT_location, DW_FORM_exprloc);
+    ];
+  };
+
+  (* Code 10: Variable (local variable with type) *)
+  {
+    code = 10;
+    tag = DW_TAG_variable;
+    has_children = false;
+    attributes = [
+      (DW_AT_name, DW_FORM_strp);
+      (DW_AT_type, DW_FORM_ref4);
+      (DW_AT_location, DW_FORM_exprloc);
+    ];
+  };
 ]
 
 (** Get the abbreviation code for a DIE based on its signature.

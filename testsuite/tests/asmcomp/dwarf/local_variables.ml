@@ -4,8 +4,6 @@
  flags = "-g";
 *)
 
-(* Test local variable tracking with parameters and let bindings *)
-
 let compute x y =
   let sum = x + y in
   let product = x * y in
