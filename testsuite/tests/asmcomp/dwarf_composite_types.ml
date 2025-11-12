@@ -65,6 +65,15 @@ let test_int_list () =
   | [] -> Printf.printf "int list: empty\n"
   | h :: _ -> Printf.printf "int list: %d\n" h
 
+(* Test references *)
+let test_int_ref () =
+  let r : int ref = ref 42 in
+  Printf.printf "int ref: %d\n" !r
+
+let test_string_ref () =
+  let r : string ref = ref "hello" in
+  Printf.printf "string ref: %s\n" !r
+
 let () =
   test_int_int_tuple ();
   test_int_float_tuple ();
@@ -74,4 +83,6 @@ let () =
   test_result ();
   test_3d_int ();
   test_3d_float ();
-  test_int_list ()
+  test_int_list ();
+  test_int_ref ();
+  test_string_ref ()

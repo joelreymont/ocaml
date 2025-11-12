@@ -7,3 +7,5 @@ result: Ok 42
 3d int: 1,2,3
 3d float: 1.0,2.0,3.0
 int list: 10
+int ref: 42
+string ref: hello
