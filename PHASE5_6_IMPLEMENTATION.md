@@ -73,28 +73,33 @@ Extended standard abbreviation codes to support composite types:
 
 ### Automatic Composite Type Generation ✅
 **Status**: COMPLETE
-**Commits**: 4f0a367c, 93f0de68, 685b1375, 1576c7a0
+**Commits**: 4f0a367c, 93f0de68, 685b1375, 1576c7a0, 5b824fe9
 
-Implemented automatic generation of 19 commonly-used composite types:
+Implemented automatic generation of 24 commonly-used composite types:
 
-**Tuple Types (5)**:
+**Tuple Types (8)**:
 - `int * int` - pairs, coordinates
 - `int * float` - mixed numeric pairs
 - `float * float` - 2D points
 - `int * int * int` - 3D coordinates, RGB values
 - `float * float * float` - 3D points, vectors
+- `string * int` - key-value patterns, labeled data
+- `string * string` - string pairs, name-value mappings
+- `int * int * int * int` - RGBA colors, quad coordinates
 
-**Option Types (5)**:
+**Option Types (6)**:
 - `option` - generic option type
 - `int option` - optional integers
 - `bool option` - optional booleans
 - `string option` - optional strings
 - `float option` - optional floats
+- `char option` - optional characters
 
-**List Types (3)**:
+**List Types (4)**:
 - `list` - generic list type
 - `int list` - integer lists
 - `string list` - string lists
+- `float list` - floating-point lists
 
 **Result Type (1)**:
 - `result` - Ok/Error result type
@@ -109,24 +114,24 @@ Implemented automatic generation of 19 commonly-used composite types:
 These types are automatically available in every compilation unit for improved debugging experience.
 
 **Files Modified**:
-- `asmcomp/debug/dwarf/dwarf_ocaml/dwarf.ml` (+191 lines)
+- `asmcomp/debug/dwarf/dwarf_ocaml/dwarf.ml` (+243 lines)
 
 **DWARF Verification**:
 ```bash
 $ readelf --debug-dump=info test.o | grep "DW_TAG_structure_type"
-# Shows all 19 composite types correctly
+# Shows all 24 composite types correctly
 ```
 
 ### Test Suite ✅
 **Status**: COMPLETE
-**Commits**: 48950545, bcfc4b2e, 429043e9
+**Commits**: 48950545, bcfc4b2e, 429043e9, a27f758d
 
 Created comprehensive ocamltest-based test suite:
 
 **Test Files**:
 1. `testsuite/tests/asmcomp/dwarf_composite_types.ml`
-   - Tests runtime behavior of all 19 automatic types
-   - Includes 2-tuples, 3-tuples, options, lists, result, refs
+   - Tests runtime behavior of all 24 automatic types
+   - Includes tuples (2D, 3D, 4D), options, lists, result, refs
    - Verifies output against reference file
 
 2. `testsuite/tests/asmcomp/dwarf_types_present.ml`
@@ -146,17 +151,17 @@ Created comprehensive ocamltest-based test suite:
 - Composite type infrastructure (all major types)
 - Type cache system
 - Standard abbreviation codes (13 codes)
-- Automatic common type generation (19 types)
+- Automatic common type generation (24 types)
 - Comprehensive test suite
 - All code committed and pushed
 
 ### Immediate Value Delivered
 The implementation provides immediate debugging value:
 - 7 primitive types with correct encodings
-- 19 commonly-used composite types automatically available
-  - 5 tuple types (2D and 3D coordinates)
-  - 5 option types (generic and specialized)
-  - 3 list types (generic and specialized)
+- 24 commonly-used composite types automatically available
+  - 8 tuple types (2D, 3D, 4D coordinates, mixed types)
+  - 6 option types (all primitive types covered)
+  - 4 list types (int, string, float, generic)
   - 1 result type
   - 5 reference types (mutable containers)
 - Proper DWARF structure for debuggers (GDB, LLDB)
