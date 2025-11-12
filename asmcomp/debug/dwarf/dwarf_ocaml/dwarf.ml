@@ -301,6 +301,50 @@ let create ~source_file ~compilation_dir ~producer () =
   in
   Dwarf_world.add_die world unit_option_type;
 
+  (* Additional list types *)
+
+  (* char list - for character processing *)
+  let char_list_type = Dwarf_world.create_variant_type
+    ~name:"char list"
+    ~variants:[
+      ("[]", None);
+      ("::", Some type_offsets.ocaml_char)
+    ]
+  in
+  Dwarf_world.add_die world char_list_type;
+
+  (* bool list - for flags and predicates *)
+  let bool_list_type = Dwarf_world.create_variant_type
+    ~name:"bool list"
+    ~variants:[
+      ("[]", None);
+      ("::", Some type_offsets.ocaml_bool)
+    ]
+  in
+  Dwarf_world.add_die world bool_list_type;
+
+  (* Specialized result types *)
+
+  (* string result - for string operations that can fail *)
+  let string_result_type = Dwarf_world.create_variant_type
+    ~name:"string result"
+    ~variants:[
+      ("Ok", Some type_offsets.ocaml_string);
+      ("Error", Some type_offsets.ocaml_string)
+    ]
+  in
+  Dwarf_world.add_die world string_result_type;
+
+  (* int result - for numeric operations that can fail *)
+  let int_result_type = Dwarf_world.create_variant_type
+    ~name:"int result"
+    ~variants:[
+      ("Ok", Some type_offsets.ocaml_int);
+      ("Error", Some type_offsets.ocaml_string)
+    ]
+  in
+  Dwarf_world.add_die world int_result_type;
+
   { source_file; world; current_function = None }
 
 let finalize_current_function t =
