@@ -1402,6 +1402,6 @@ let end_assembly () =
   emit_size_directive lbl;
   emit_nonexecstack_note ();
   (* Emit DWARF debugging sections if enabled *)
-  if Dwarf_flags.is_dwarf_enabled () then begin
-    Emitaux.Dwarf_helpers.emit_dwarf stdout
+  if Dwarf_flags.is_dwarf_enabled () && !Emitaux.create_asm_file then begin
+    Emitaux.Dwarf_helpers.emit_dwarf !Emitaux.output_channel
   end
