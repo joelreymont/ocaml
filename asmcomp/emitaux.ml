@@ -547,11 +547,11 @@ module Dwarf_helpers = struct
     | Some state ->
         Dwarf.add_line_number state ~address ~file ~line ~column
 
-  let add_variable ~name ~location ~is_parameter =
+  let add_variable ~name ~location ~is_parameter ?type_name () =
     match !dwarf_state with
     | None -> ()
     | Some state ->
-        Dwarf.add_variable state ~name ~location ~is_parameter
+        Dwarf.add_variable state ~name ~location ~is_parameter ?type_name ()
 
   let emit_section_bytes oc bytes =
     (* Emit bytes as .byte directives, 16 bytes per line *)

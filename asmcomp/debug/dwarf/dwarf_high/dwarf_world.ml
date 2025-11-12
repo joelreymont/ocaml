@@ -113,6 +113,14 @@ let create_base_type ~name ~byte_size ~encoding =
 type type_offsets = {
   ocaml_value : int;  (* Generic OCaml value type *)
   ocaml_int : int;    (* OCaml integer type *)
+  ocaml_float : int;  (* OCaml float type *)
+  ocaml_char : int;   (* OCaml char type *)
+  ocaml_bool : int;   (* OCaml bool type *)
+  ocaml_string : int; (* OCaml string type *)
+  ocaml_unit : int;   (* OCaml unit type *)
+  ocaml_int32 : int;  (* OCaml int32 type *)
+  ocaml_int64 : int;  (* OCaml int64 type *)
+  ocaml_nativeint : int; (* OCaml nativeint type *)
 }
 
 let add_standard_types t =
@@ -136,8 +144,155 @@ let add_standard_types t =
   in
   add_die t int_die;
 
+  (* OCaml float: IEEE 754 double-precision floating point *)
+  let float_die = create_base_type
+    ~name:"float"
+    ~byte_size:8
+    ~encoding:Dwarf_encoding.DW_ATE_float
+  in
+  add_die t float_die;
+
+  (* OCaml char: single byte character *)
+  let char_die = create_base_type
+    ~name:"char"
+    ~byte_size:1
+    ~encoding:Dwarf_encoding.DW_ATE_unsigned_char
+  in
+  add_die t char_die;
+
+  (* OCaml bool: represented as tagged int (0 or 1) *)
+  let bool_die = create_base_type
+    ~name:"bool"
+    ~byte_size:8
+    ~encoding:Dwarf_encoding.DW_ATE_boolean
+  in
+  add_die t bool_die;
+
+  (* OCaml string: pointer to string block *)
+  let string_die = create_base_type
+    ~name:"string"
+    ~byte_size:8
+    ~encoding:Dwarf_encoding.DW_ATE_address
+  in
+  add_die t string_die;
+
+  (* OCaml unit: represented as constant 0 *)
+  let unit_die = create_base_type
+    ~name:"unit"
+    ~byte_size:8
+    ~encoding:Dwarf_encoding.DW_ATE_address
+  in
+  add_die t unit_die;
+
+  (* OCaml int32: 32-bit signed integer in block *)
+  let int32_die = create_base_type
+    ~name:"int32"
+    ~byte_size:4
+    ~encoding:Dwarf_encoding.DW_ATE_signed
+  in
+  add_die t int32_die;
+
+  (* OCaml int64: 64-bit signed integer in block *)
+  let int64_die = create_base_type
+    ~name:"int64"
+    ~byte_size:8
+    ~encoding:Dwarf_encoding.DW_ATE_signed
+  in
+  add_die t int64_die;
+
+  (* OCaml nativeint: platform-dependent integer *)
+  let nativeint_die = create_base_type
+    ~name:"nativeint"
+    ~byte_size:8
+    ~encoding:Dwarf_encoding.DW_ATE_signed
+  in
+  add_die t nativeint_die;
+
   (* Return placeholder offsets - these will be resolved during emission *)
-  { ocaml_value = 0; ocaml_int = 0 }
+  { ocaml_value = 0; ocaml_int = 0; ocaml_float = 0; ocaml_char = 0;
+    ocaml_bool = 0; ocaml_string = 0; ocaml_unit = 0; ocaml_int32 = 0;
+    ocaml_int64 = 0; ocaml_nativeint = 0 }
+
+(* Composite type creation *)
+
+(** Create a pointer/reference type *)
+let create_pointer_type ~name ~byte_size ~element_type_ref =
+  let die = Proto_die.create Dwarf_tag.DW_TAG_pointer_type in
+  let die = Proto_die.with_name die name in
+  let die = Proto_die.with_byte_size die byte_size in
+  let die = Proto_die.with_type die element_type_ref in
+  die
+
+(** Create an array type *)
+let create_array_type ~name ~element_type_ref =
+  let die = Proto_die.create Dwarf_tag.DW_TAG_array_type in
+  let die = Proto_die.with_name die name in
+  let die = Proto_die.with_type die element_type_ref in
+  die
+
+(** Create a tuple/structure type *)
+let create_tuple_type ~name ~byte_size ~field_types =
+  let die = Proto_die.create Dwarf_tag.DW_TAG_structure_type in
+  let die = Proto_die.with_name die name in
+  let die = Proto_die.with_byte_size die byte_size in
+  let die = Proto_die.set_has_children die true in
+
+  (* Add fields *)
+  let die = List.fold_left (fun acc_die (field_name, field_type_ref, offset) ->
+    let field = Proto_die.create Dwarf_tag.DW_TAG_member in
+    let field = Proto_die.with_name field field_name in
+    let field = Proto_die.with_type field field_type_ref in
+    let field = Proto_die.add_attribute field {
+      attr = DW_AT_data_member_location;
+      value = Constant (Int offset);
+      form = DW_FORM_data1;
+    } in
+    Proto_die.add_child acc_die field
+  ) die field_types in
+  die
+
+(** Create a record type *)
+let create_record_type ~name ~byte_size ~fields =
+  create_tuple_type ~name ~byte_size ~field_types:fields
+
+(** Create a variant/union type *)
+let create_variant_type ~name ~byte_size ~variants =
+  let die = Proto_die.create Dwarf_tag.DW_TAG_union_type in
+  let die = Proto_die.with_name die name in
+  let die = Proto_die.with_byte_size die byte_size in
+  let die = Proto_die.set_has_children die true in
+
+  (* Add variant members *)
+  let die = List.fold_left (fun acc_die (variant_name, variant_type_ref_opt, tag) ->
+    let member = Proto_die.create Dwarf_tag.DW_TAG_member in
+    let member = Proto_die.with_name member variant_name in
+    let member = (match variant_type_ref_opt with
+      | Some type_ref -> Proto_die.with_type member type_ref
+      | None -> member
+    ) in
+    let member = Proto_die.add_attribute member {
+      attr = DW_AT_const_value;
+      value = Constant (Int tag);
+      form = DW_FORM_data1;
+    } in
+    Proto_die.add_child acc_die member
+  ) die variants in
+  die
+
+(* User type registration and caching *)
+
+(** Add a user-defined type DIE.
+    Returns a placeholder offset (0 for now - will be resolved during emission). *)
+let add_user_type t ~name:_ type_die =
+  (* Add type DIE to world *)
+  (* Note: Deduplication by name is not currently implemented *)
+  add_die t type_die;
+  0  (* Placeholder offset *)
+
+(** Look up a user-defined type by name *)
+let lookup_user_type _t ~name:_ =
+  (* Type lookup not yet implemented - types are added directly *)
+  None
 
 (* Section emission - simplified versions *)
 

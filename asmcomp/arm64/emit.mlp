@@ -106,6 +106,7 @@ let emit_dwarf_parameter ~name ~reg ~start_addr ~end_addr =
       ~name
       ~location
       ~is_parameter:true
+      ()
 
 (* Object types *)
 

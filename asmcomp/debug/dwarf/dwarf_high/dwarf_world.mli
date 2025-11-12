@@ -68,12 +68,73 @@ val range_list_table : t -> Range_list_table.t
 
 (** Type DIE offsets for referencing standard types *)
 type type_offsets = {
-  ocaml_value : int;  (** Generic OCaml value type *)
-  ocaml_int : int;    (** OCaml integer type *)
+  ocaml_value : int;     (** Generic OCaml value type *)
+  ocaml_int : int;       (** OCaml integer type *)
+  ocaml_float : int;     (** OCaml float type *)
+  ocaml_char : int;      (** OCaml char type *)
+  ocaml_bool : int;      (** OCaml bool type *)
+  ocaml_string : int;    (** OCaml string type *)
+  ocaml_unit : int;      (** OCaml unit type *)
+  ocaml_int32 : int;     (** OCaml int32 type *)
+  ocaml_int64 : int;     (** OCaml int64 type *)
+  ocaml_nativeint : int; (** OCaml nativeint type *)
 }
 
 (** Add standard OCaml type DIEs to the world and return their offsets *)
 val add_standard_types : t -> type_offsets
+
+(** User-defined type creation functions *)
+
+(** Create a pointer/reference type *)
+val create_pointer_type :
+  name:string ->
+  byte_size:int ->
+  element_type_ref:int ->
+  Proto_die.t
+
+(** Create an array type *)
+val create_array_type :
+  name:string ->
+  element_type_ref:int ->
+  Proto_die.t
+
+(** Create a tuple/structure type with named fields *)
+val create_tuple_type :
+  name:string ->
+  byte_size:int ->
+  field_types:(string * int * int) list ->  (* (name, type_ref, offset) *)
+  Proto_die.t
+
+(** Create a record type (alias for create_tuple_type) *)
+val create_record_type :
+  name:string ->
+  byte_size:int ->
+  fields:(string * int * int) list ->  (* (name, type_ref, offset) *)
+  Proto_die.t
+
+(** Create a variant/union type *)
+val create_variant_type :
+  name:string ->
+  byte_size:int ->
+  variants:(string * int option * int) list ->  (* (name, type_ref option, tag) *)
+  Proto_die.t
+
+(** User type registration *)
+
+(** Add a user-defined type and cache it by name.
+    Returns a type offset that can be referenced.
+    If the type already exists, returns the existing offset. *)
+val add_user_type :
+  t ->
+  name:string ->
+  Proto_die.t ->
+  int
+
+(** Look up a previously registered user-defined type by name *)
+val lookup_user_type :
+  t ->
+  name:string ->
+  int option
 
 (** Emit all DWARF sections to a buffer *)
 type relocation = {

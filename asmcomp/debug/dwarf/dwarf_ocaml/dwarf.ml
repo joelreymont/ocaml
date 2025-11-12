@@ -18,6 +18,7 @@ type t = {
   source_file : string;
   world : Dwarf_world.t;
   mutable current_function : Proto_die.t option;
+  type_offsets : Dwarf_world.type_offsets;
 }
 
 let is_enabled () =
@@ -37,9 +38,9 @@ let create ~source_file ~compilation_dir ~producer () =
 
   (* Add standard OCaml type DIEs (int, value, etc.)
      These will be the first DIEs after the compilation unit DIE *)
-  let _type_offsets = Dwarf_world.add_standard_types world in
+  let type_offsets = Dwarf_world.add_standard_types world in
 
-  { source_file; world; current_function = None }
+  { source_file; world; current_function = None; type_offsets }
 
 let finalize_current_function t =
   (* Add the current function (with all its variables) to the world *)
@@ -62,7 +63,7 @@ let add_function t ~name ~start_address ~end_address =
   (* Store as current function (don't add to world yet - we'll add variables first) *)
   t.current_function <- Some func_die
 
-let add_variable t ~name ~(location : Variable_location.location) ~is_parameter =
+let add_variable t ~name ~(location : Variable_location.location) ~is_parameter ?type_name () =
   match t.current_function with
   | None ->
       (* No current function - ignore variable *)
@@ -71,13 +72,25 @@ let add_variable t ~name ~(location : Variable_location.location) ~is_parameter 
       (* Convert location to DWARF expression bytes *)
       let location_expr = Variable_location.location_to_expression location.kind in
 
-      (* Create variable DIE with type reference.
-         For now, all parameters reference the generic "value" type.
-         The "value" type DIE is at offset 0x19 in the compilation unit.
-         TODO: Calculate this offset dynamically based on CU DIE size. *)
+      (* Determine which type to use based on type_name hint.
+         Default to generic "value" type if not specified. *)
+      let type_ref = match type_name with
+        | Some "int" -> t.type_offsets.ocaml_int
+        | Some "float" -> t.type_offsets.ocaml_float
+        | Some "char" -> t.type_offsets.ocaml_char
+        | Some "bool" -> t.type_offsets.ocaml_bool
+        | Some "string" -> t.type_offsets.ocaml_string
+        | Some "unit" -> t.type_offsets.ocaml_unit
+        | Some "int32" -> t.type_offsets.ocaml_int32
+        | Some "int64" -> t.type_offsets.ocaml_int64
+        | Some "nativeint" -> t.type_offsets.ocaml_nativeint
+        | _ -> t.type_offsets.ocaml_value  (* Default *)
+      in
+
+      (* Create variable DIE with appropriate type reference *)
       let var_die = Proto_die.create_variable
         ~name
-        ~type_ref:0x19  (* Reference to "value" type *)
+        ~type_ref
         ~location:location_expr
         ~is_parameter
         ()
@@ -93,6 +106,31 @@ let add_line_number t ~address ~file ~line ~column =
     ~file
     ~line
     ~column
+
+(* User-defined type registration *)
+
+let add_record_type t ~name ~byte_size ~fields =
+  let type_die = Dwarf_world.create_record_type ~name ~byte_size ~fields in
+  Dwarf_world.add_user_type t.world ~name type_die
+
+let add_variant_type t ~name ~byte_size ~variants =
+  let type_die = Dwarf_world.create_variant_type ~name ~byte_size ~variants in
+  Dwarf_world.add_user_type t.world ~name type_die
+
+let add_tuple_type t ~name ~byte_size ~field_types =
+  let type_die = Dwarf_world.create_tuple_type ~name ~byte_size ~field_types in
+  Dwarf_world.add_user_type t.world ~name type_die
+
+let add_array_type t ~name ~element_type_ref =
+  let type_die = Dwarf_world.create_array_type ~name ~element_type_ref in
+  Dwarf_world.add_user_type t.world ~name type_die
+
+let add_pointer_type t ~name ~byte_size ~element_type_ref =
+  let type_die = Dwarf_world.create_pointer_type ~name ~byte_size ~element_type_ref in
+  Dwarf_world.add_user_type t.world ~name type_die
+
+let lookup_type t ~name =
+  Dwarf_world.lookup_user_type t.world ~name
 
 let emit t =
   (* Finalize any pending function *)

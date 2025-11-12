@@ -80,13 +80,71 @@ val add_line_number :
     - name: Variable name
     - location: Variable location (register or stack)
     - is_parameter: true if this is a function parameter, false for local
+    - type_name: optional type hint ("int", "float", "char", "bool", "string", "unit",
+                 "int32", "int64", "nativeint"). Defaults to generic "value" type.
 *)
 val add_variable :
   t ->
   name:string ->
   location:Variable_location.location ->
   is_parameter:bool ->
+  ?type_name:string ->
+  unit ->
   unit
+
+(** User-defined type registration.
+
+    These functions allow adding custom OCaml types (records, variants, tuples, arrays)
+    to the DWARF information. Types are cached by name to avoid duplication. *)
+
+(** Add a record type definition.
+    Fields is a list of (field_name, field_type_ref, offset). *)
+val add_record_type :
+  t ->
+  name:string ->
+  byte_size:int ->
+  fields:(string * int * int) list ->
+  int
+
+(** Add a variant/union type definition.
+    Variants is a list of (variant_name, type_ref option, tag). *)
+val add_variant_type :
+  t ->
+  name:string ->
+  byte_size:int ->
+  variants:(string * int option * int) list ->
+  int
+
+(** Add a tuple type definition.
+    Field_types is a list of (field_name, field_type_ref, offset). *)
+val add_tuple_type :
+  t ->
+  name:string ->
+  byte_size:int ->
+  field_types:(string * int * int) list ->
+  int
+
+(** Add an array type definition. *)
+val add_array_type :
+  t ->
+  name:string ->
+  element_type_ref:int ->
+  int
+
+(** Add a pointer/reference type definition. *)
+val add_pointer_type :
+  t ->
+  name:string ->
+  byte_size:int ->
+  element_type_ref:int ->
+  int
+
+(** Look up a previously registered type by name.
+    Returns Some offset if found, None otherwise. *)
+val lookup_type :
+  t ->
+  name:string ->
+  int option
 
 (** Emit all DWARF sections.
 
