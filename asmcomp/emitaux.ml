@@ -613,7 +613,25 @@ module Dwarf_helpers = struct
             emit_chunk offset
           end;
           (* Emit relocation as .quad directive *)
-          Printf.fprintf oc "\t.quad %s\n" reloc.Dwarf_world.label;
+          (* Format symbol name with proper escaping, matching emit_symbol logic *)
+          let format_symbol_for_dwarf s =
+            let buf = Buffer.create (String.length s + 10) in
+            if Config.system = "macosx" then Buffer.add_char buf '_';
+            for i = 0 to String.length s - 1 do
+              let c = s.[i] in
+              match c with
+              | 'A'..'Z' | 'a'..'z' | '0'..'9' | '_' ->
+                  Buffer.add_char buf c
+              | _ ->
+                  if c = Compilenv.symbol_separator then
+                    Buffer.add_char buf c
+                  else
+                    Printf.bprintf buf "%s%02x" Compilenv.escape_prefix (Char.code c)
+            done;
+            Buffer.contents buf
+          in
+          let symbol = format_symbol_for_dwarf reloc.Dwarf_world.label in
+          Printf.fprintf oc "\t.quad %s\n" symbol;
           (* Continue after the 8-byte address *)
           emit_from (reloc_offset + 8) rest
     in
