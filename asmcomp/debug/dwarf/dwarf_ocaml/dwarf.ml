@@ -138,6 +138,46 @@ let create ~source_file ~compilation_dir ~producer () =
   in
   Dwarf_world.add_die world int_list_type;
 
+  (* string list *)
+  let string_list_type = Dwarf_world.create_variant_type
+    ~name:"string list"
+    ~variants:[
+      ("[]", None);
+      ("::", Some type_offsets.ocaml_string)
+    ]
+  in
+  Dwarf_world.add_die world string_list_type;
+
+  (* bool option *)
+  let bool_option_type = Dwarf_world.create_variant_type
+    ~name:"bool option"
+    ~variants:[
+      ("None", None);
+      ("Some", Some type_offsets.ocaml_bool)
+    ]
+  in
+  Dwarf_world.add_die world bool_option_type;
+
+  (* string option *)
+  let string_option_type = Dwarf_world.create_variant_type
+    ~name:"string option"
+    ~variants:[
+      ("None", None);
+      ("Some", Some type_offsets.ocaml_string)
+    ]
+  in
+  Dwarf_world.add_die world string_option_type;
+
+  (* float option *)
+  let float_option_type = Dwarf_world.create_variant_type
+    ~name:"float option"
+    ~variants:[
+      ("None", None);
+      ("Some", Some type_offsets.ocaml_float)
+    ]
+  in
+  Dwarf_world.add_die world float_option_type;
+
   { source_file; world; current_function = None }
 
 let finalize_current_function t =
