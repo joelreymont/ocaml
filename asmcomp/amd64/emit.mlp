@@ -1017,11 +1017,19 @@ let fundecl fundecl =
   cfi_endproc ();
   (* Track function for DWARF debugging information *)
   if Dwarf_flags.is_dwarf_enabled () then begin
-    let start_label = emit_symbol fundecl.fun_name in
-    let start_addr = Code_address.from_label start_label in
-    let end_label = emit_symbol (fundecl.fun_name ^ "_end") in
-    D.label end_label;
-    let end_addr = Code_address.from_label end_label in
+    (* Don't encode the symbol names - let DWARF emitter handle encoding *)
+    let start_addr = Code_address.from_label fundecl.fun_name in
+    let end_label_name = fundecl.fun_name ^ "_end" in
+    let end_addr = Code_address.from_label end_label_name in
+    (* Make end label global so linker can resolve DWARF references *)
+    let encoded_end_label = emit_symbol end_label_name in
+    if system = S_macosx && not Config.function_sections
+        && is_generic_function fundecl.fun_name
+      then
+        D.private_extern encoded_end_label
+      else
+        D.global encoded_end_label;
+    D.label encoded_end_label;
     Emitaux.Dwarf_helpers.add_function
       ~name:fundecl.fun_name
       ~start_address:start_addr

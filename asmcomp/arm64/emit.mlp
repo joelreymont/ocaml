@@ -1276,6 +1276,8 @@ let fundecl fundecl =
   if Dwarf_flags.is_dwarf_enabled () then begin
     let start_addr = Code_address.from_label (fundecl.fun_name) in
     let end_label = fundecl.fun_name ^ "_end" in
+    (* Make end label global so linker can resolve DWARF references *)
+    `	.globl	{emit_symbol end_label}\n`;
     `{emit_symbol end_label}:\n`;
     let end_addr = Code_address.from_label end_label in
     Emitaux.Dwarf_helpers.add_function
