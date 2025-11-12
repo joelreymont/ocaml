@@ -4,3 +4,6 @@ float*float: 1.5,2.5
 int option: Some 123
 option: Some test
 result: Ok 42
+3d int: 1,2,3
+3d float: 1.0,2.0,3.0
+int list: 10

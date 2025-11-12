@@ -46,10 +46,32 @@ let test_result () =
   | Ok x -> Printf.printf "result: Ok %d\n" x
   | Error _ -> Printf.printf "result: Error\n"
 
+(* Test 3-tuples *)
+let test_3d_int () =
+  let p : int * int * int = (1, 2, 3) in
+  let (x, y, z) = p in
+  Printf.printf "3d int: %d,%d,%d\n" x y z
+
+let test_3d_float () =
+  let p : float * float * float = (1.0, 2.0, 3.0) in
+  let (x, y, z) = p in
+  Printf.printf "3d float: %.1f,%.1f,%.1f\n" x y z
+
+(* Test lists *)
+let test_int_list () =
+  let empty : int list = [] in
+  let nonempty : int list = [10; 20; 30] in
+  match nonempty with
+  | [] -> Printf.printf "int list: empty\n"
+  | h :: _ -> Printf.printf "int list: %d\n" h
+
 let () =
   test_int_int_tuple ();
   test_int_float_tuple ();
   test_float_float_tuple ();
   test_int_option ();
   test_option ();
-  test_result ()
+  test_result ();
+  test_3d_int ();
+  test_3d_float ();
+  test_int_list ()
