@@ -216,6 +216,58 @@ let create ~source_file ~compilation_dir ~producer () =
   in
   Dwarf_world.add_die world ref_type;
 
+  (* Additional useful list types *)
+
+  (* float list *)
+  let float_list_type = Dwarf_world.create_variant_type
+    ~name:"float list"
+    ~variants:[
+      ("[]", None);
+      ("::", Some type_offsets.ocaml_float)
+    ]
+  in
+  Dwarf_world.add_die world float_list_type;
+
+  (* Additional option types *)
+
+  (* char option *)
+  let char_option_type = Dwarf_world.create_variant_type
+    ~name:"char option"
+    ~variants:[
+      ("None", None);
+      ("Some", Some type_offsets.ocaml_char)
+    ]
+  in
+  Dwarf_world.add_die world char_option_type;
+
+  (* Additional tuple combinations *)
+
+  (* string * int - common for key-value patterns *)
+  let string_int_tuple = Dwarf_world.create_tuple_type
+    ~name:"string * int"
+    ~field_types:[type_offsets.ocaml_string; type_offsets.ocaml_int]
+  in
+  Dwarf_world.add_die world string_int_tuple;
+
+  (* string * string - common for string pairs *)
+  let string_string_tuple = Dwarf_world.create_tuple_type
+    ~name:"string * string"
+    ~field_types:[type_offsets.ocaml_string; type_offsets.ocaml_string]
+  in
+  Dwarf_world.add_die world string_string_tuple;
+
+  (* int * int * int * int - 4-tuples for RGBA, quads *)
+  let int_int_int_int_tuple = Dwarf_world.create_tuple_type
+    ~name:"int * int * int * int"
+    ~field_types:[
+      type_offsets.ocaml_int;
+      type_offsets.ocaml_int;
+      type_offsets.ocaml_int;
+      type_offsets.ocaml_int
+    ]
+  in
+  Dwarf_world.add_die world int_int_int_int_tuple;
+
   { source_file; world; current_function = None }
 
 let finalize_current_function t =
