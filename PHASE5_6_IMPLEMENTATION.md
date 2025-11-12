@@ -73,11 +73,11 @@ Extended standard abbreviation codes to support composite types:
 
 ### Automatic Composite Type Generation ✅
 **Status**: COMPLETE
-**Commits**: 4f0a367c, 93f0de68, 685b1375, 1576c7a0, 5b824fe9
+**Commits**: 4f0a367c, 93f0de68, 685b1375, 1576c7a0, 5b824fe9, 87e7c018, 1068c361
 
-Implemented automatic generation of 24 commonly-used composite types:
+Implemented automatic generation of 32 commonly-used composite types:
 
-**Tuple Types (8)**:
+**Tuple Types (11)**:
 - `int * int` - pairs, coordinates
 - `int * float` - mixed numeric pairs
 - `float * float` - 2D points
@@ -86,23 +86,31 @@ Implemented automatic generation of 24 commonly-used composite types:
 - `string * int` - key-value patterns, labeled data
 - `string * string` - string pairs, name-value mappings
 - `int * int * int * int` - RGBA colors, quad coordinates
+- `bool * bool` - boolean pairs, flag combinations
+- `int * string` - labeled integers, error messages
+- `float * int` - numeric computations with counts
 
-**Option Types (6)**:
+**Option Types (7)**:
 - `option` - generic option type
 - `int option` - optional integers
 - `bool option` - optional booleans
 - `string option` - optional strings
 - `float option` - optional floats
 - `char option` - optional characters
+- `unit option` - optional side effects
 
-**List Types (4)**:
+**List Types (6)**:
 - `list` - generic list type
 - `int list` - integer lists
 - `string list` - string lists
 - `float list` - floating-point lists
+- `char list` - character processing
+- `bool list` - flags and predicates
 
-**Result Type (1)**:
-- `result` - Ok/Error result type
+**Result Types (3)**:
+- `result` - generic Ok/Error result type
+- `string result` - string operations that can fail
+- `int result` - numeric operations that can fail
 
 **Reference Types (5)**:
 - `int ref` - mutable int reference
@@ -114,12 +122,12 @@ Implemented automatic generation of 24 commonly-used composite types:
 These types are automatically available in every compilation unit for improved debugging experience.
 
 **Files Modified**:
-- `asmcomp/debug/dwarf/dwarf_ocaml/dwarf.ml` (+243 lines)
+- `asmcomp/debug/dwarf/dwarf_ocaml/dwarf.ml` (+320 lines)
 
 **DWARF Verification**:
 ```bash
-$ readelf --debug-dump=info test.o | grep "DW_TAG_structure_type"
-# Shows all 24 composite types correctly
+$ readelf --debug-dump=info test.o | grep "DW_TAG_structure_type" | wc -l
+32  # All 32 composite types correctly generated
 ```
 
 ### Test Suite ✅
@@ -177,7 +185,7 @@ Function parameter tracking is functional in the existing codebase:
 - Composite type infrastructure (all major types)
 - Type cache system
 - Standard abbreviation codes (13 codes)
-- Automatic common type generation (24 types)
+- Automatic common type generation (32 types)
 - Function parameter tracking (already implemented)
 - Comprehensive test suite
 - All code committed and pushed
@@ -185,11 +193,11 @@ Function parameter tracking is functional in the existing codebase:
 ### Immediate Value Delivered
 The implementation provides immediate debugging value:
 - 7 primitive types with correct encodings
-- 24 commonly-used composite types automatically available
-  - 8 tuple types (2D, 3D, 4D coordinates, mixed types)
-  - 6 option types (all primitive types covered)
-  - 4 list types (int, string, float, generic)
-  - 1 result type
+- 32 commonly-used composite types automatically available
+  - 11 tuple types (2D, 3D, 4D coordinates, mixed types, string pairs)
+  - 7 option types (all primitive types + unit covered)
+  - 6 list types (int, string, float, char, bool, generic)
+  - 3 result types (generic, string-specific, int-specific)
   - 5 reference types (mutable containers)
 - Function parameter tracking with location expressions
   - Parameters visible in debuggers
