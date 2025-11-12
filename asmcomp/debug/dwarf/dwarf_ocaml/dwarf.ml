@@ -178,6 +178,44 @@ let create ~source_file ~compilation_dir ~producer () =
   in
   Dwarf_world.add_die world float_option_type;
 
+  (* Reference types: type 'a ref = { mutable contents : 'a }
+     Represented as structure with single "contents" field *)
+
+  (* int ref *)
+  let int_ref_type = Dwarf_world.create_record_type
+    ~name:"int ref"
+    ~fields:[("contents", type_offsets.ocaml_int)]
+  in
+  Dwarf_world.add_die world int_ref_type;
+
+  (* string ref *)
+  let string_ref_type = Dwarf_world.create_record_type
+    ~name:"string ref"
+    ~fields:[("contents", type_offsets.ocaml_string)]
+  in
+  Dwarf_world.add_die world string_ref_type;
+
+  (* bool ref *)
+  let bool_ref_type = Dwarf_world.create_record_type
+    ~name:"bool ref"
+    ~fields:[("contents", type_offsets.ocaml_bool)]
+  in
+  Dwarf_world.add_die world bool_ref_type;
+
+  (* float ref *)
+  let float_ref_type = Dwarf_world.create_record_type
+    ~name:"float ref"
+    ~fields:[("contents", type_offsets.ocaml_float)]
+  in
+  Dwarf_world.add_die world float_ref_type;
+
+  (* Generic ref type *)
+  let ref_type = Dwarf_world.create_record_type
+    ~name:"ref"
+    ~fields:[("contents", type_offsets.ocaml_value)]
+  in
+  Dwarf_world.add_die world ref_type;
+
   { source_file; world; current_function = None }
 
 let finalize_current_function t =
