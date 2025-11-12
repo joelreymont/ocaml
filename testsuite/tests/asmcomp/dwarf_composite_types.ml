@@ -74,6 +74,34 @@ let test_string_ref () =
   let r : string ref = ref "hello" in
   Printf.printf "string ref: %s\n" !r
 
+(* Test additional types *)
+let test_float_list () =
+  let l : float list = [1.5; 2.5] in
+  match l with
+  | [] -> Printf.printf "float list: empty\n"
+  | h :: _ -> Printf.printf "float list: %.1f\n" h
+
+let test_char_option () =
+  let o : char option = Some 'x' in
+  match o with
+  | None -> Printf.printf "char option: None\n"
+  | Some c -> Printf.printf "char option: %c\n" c
+
+let test_string_int () =
+  let p : string * int = ("key", 42) in
+  let (s, i) = p in
+  Printf.printf "string*int: %s,%d\n" s i
+
+let test_string_string () =
+  let p : string * string = ("a", "b") in
+  let (s1, s2) = p in
+  Printf.printf "string*string: %s,%s\n" s1 s2
+
+let test_4tuple () =
+  let t : int * int * int * int = (1, 2, 3, 4) in
+  let (a, b, c, d) = t in
+  Printf.printf "4tuple: %d,%d,%d,%d\n" a b c d
+
 let () =
   test_int_int_tuple ();
   test_int_float_tuple ();
@@ -85,4 +113,9 @@ let () =
   test_3d_float ();
   test_int_list ();
   test_int_ref ();
-  test_string_ref ()
+  test_string_ref ();
+  test_float_list ();
+  test_char_option ();
+  test_string_int ();
+  test_string_string ();
+  test_4tuple ()

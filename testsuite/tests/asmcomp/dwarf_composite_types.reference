@@ -9,3 +9,8 @@ result: Ok 42
 int list: 10
 int ref: 42
 string ref: hello
+float list: 1.5
+char option: x
+string*int: key,42
+string*string: a,b
+4tuple: 1,2,3,4
