@@ -102,10 +102,18 @@ let emit_dwarf_parameter ~name ~reg ~start_addr ~end_addr =
     let scope = { Variable_location.start_address = start_addr;
                   end_address = end_addr } in
     let location = { Variable_location.scope; kind = location_kind } in
+    (* Infer type from machtype_component *)
+    let type_name = match reg.Reg.typ with
+      | Cmm.Int -> Some "int"
+      | Cmm.Float -> Some "float"
+      | Cmm.Val -> Some "value"
+      | Cmm.Addr -> Some "value"
+    in
     Emitaux.Dwarf_helpers.add_variable
       ~name
       ~location
       ~is_parameter:true
+      ?type_name
       ()
 
 (* Track a local variable's location in DWARF *)
@@ -115,10 +123,18 @@ let emit_dwarf_local_variable ~name ~reg ~start_addr ~end_addr =
     let scope = { Variable_location.start_address = start_addr;
                   end_address = end_addr } in
     let location = { Variable_location.scope; kind = location_kind } in
+    (* Infer type from machtype_component *)
+    let type_name = match reg.Reg.typ with
+      | Cmm.Int -> Some "int"
+      | Cmm.Float -> Some "float"
+      | Cmm.Val -> Some "value"
+      | Cmm.Addr -> Some "value"
+    in
     Emitaux.Dwarf_helpers.add_variable
       ~name
       ~location
       ~is_parameter:false
+      ?type_name
       ()
 
 (* Track which variables we've already emitted to avoid duplicates *)

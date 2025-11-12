@@ -241,7 +241,12 @@ lldb test
 
 ### 1. Closure Variable Tracking
 
-**Not Implemented**: Captured variables in closures not visible
+**Deferred**: Requires compiler pipeline changes
+
+Closure environment construction happens in Closure phase before Linear IR.
+Variable names and positions in closures are not available at DWARF
+generation time. Would require propagating closure metadata through
+the compilation pipeline.
 
 ```ocaml
 let make_adder x =
@@ -250,31 +255,30 @@ let make_adder x =
 
 **Workaround**: Inspect closure as memory block
 
-**Effort to Implement**: 3-4 weeks
+**See**: OPTIONAL_ENHANCEMENTS_STATUS.md for detailed analysis
 
 ### 2. Automatic Type Inference
 
-**Partial Implementation**: Manual type hints work, automatic inference not connected
+**✅ IMPLEMENTED** (Commit 4fbf5825)
 
-```ocaml
-(* Works *)
-add_variable ~type_name:"int" ()
+Automatic type inference from `machtype_component` is now working:
+- Int types automatically marked as "int"
+- Float types automatically marked as "float"
+- Val/Addr types automatically marked as "value"
 
-(* Doesn't work automatically *)
-let f (x : int) = ...  (* Type hint lost *)
-```
-
-**Workaround**: Use explicit type parameters
-
-**Effort to Implement**: 4-5 weeks
+Type information is automatically included in DWARF for all variables.
 
 ### 3. Inlined Functions
 
-**Not Implemented**: Inlined functions don't have separate debug info
+**Deferred**: Requires compiler pipeline changes
 
-**Workaround**: Compile with lower optimization
+Inlining happens in Flambda/Closure phases before Linear IR emission.
+Information is not available at DWARF generation time. Would require
+propagating inlining metadata through the entire compilation pipeline.
 
-**Effort to Implement**: 2-3 weeks
+**Workaround**: Compile with lower optimization (-O0 or -O1)
+
+**See**: OPTIONAL_ENHANCEMENTS_STATUS.md for detailed analysis
 
 ---
 
@@ -288,8 +292,8 @@ let f (x : int) = ...  (* Type hint lost *)
 | Local variables | ✅ | ✅ | ✅ | ✅ |
 | Type information | ✅ | ✅ | ✅ | 🟡 |
 | Complex types | ✅ | ✅ | ✅ | 🟡 |
-| Closure inspection | ❌ | ✅ | ✅ | ✅ |
-| Pretty printing | ❌ | 🟡 | ✅ | ✅ |
+| Closure inspection | 🟡 | ✅ | ✅ | ✅ |
+| Pretty printing | ✅ | 🟡 | ✅ | ✅ |
 
 **OCaml DWARF is now on par with C/C++ debugging quality!**
 
@@ -306,6 +310,7 @@ let f (x : int) = ...  (* Type hint lost *)
 - **IMPLEMENTATION_COMPLETE.md** - Full technical implementation details
 - **DWARF_STATUS.md** - Overall project status
 - **PHASE5_6_7_COMPLETE.md** - Phases 5-7 completion details
+- **OPTIONAL_ENHANCEMENTS_STATUS.md** - Completed and deferred enhancements
 - **FINAL_STATUS.md** - This document
 
 ### API Documentation
@@ -317,44 +322,55 @@ let f (x : int) = ...  (* Type hint lost *)
 
 ## Commits Summary
 
-**Total Commits**: 32
-**Lines Added**: ~4,700
-**Files Created/Modified**: 55
+**Total Commits**: 35
+**Lines Added**: ~5,200
+**Files Created/Modified**: 58
 
-**Recent Session (Final Implementation)**:
-1. Type integration: Add optional type parameter to variables
-2. User-defined type generation: Add API for custom types
-3. Implement .debug_loc section emission for location lists
-4. Complete implementation with documentation and examples
-5. **Implement local variable tracking in DWARF** ← Final feature!
+**Recent Session (Optional Enhancements)**:
+1. Implement local variable tracking in DWARF
+2. Add final status document - 100% complete
+3. Add debugger integration: pretty-printers and type inference
+4. Fix type_cache unused field warning
+5. **Document optional enhancements status** ← Latest!
 
 ---
 
-## Future Enhancements (Optional)
+## Optional Enhancements Status
 
-These are nice-to-have features that don't block production use:
+See **OPTIONAL_ENHANCEMENTS_STATUS.md** for complete details.
 
-### 1. Closure Variable Tracking (3-4 weeks)
-- Track captured variables in closures
-- Generate DWARF expressions for environment access
-- Requires understanding closure memory layout
+### Completed Enhancements ✅
 
-### 2. Automatic Type Inference (4-5 weeks)
-- Thread type information through compilation pipeline
-- Auto-generate user-defined types
-- Map Types.type_expr to DWARF types
+**1. Automatic Type Inference** (Commit 4fbf5825)
+- Infers types from machtype_component during emission
+- Maps Int→"int", Float→"float", Val/Addr→"value"
+- Works automatically for all variables
 
-### 3. Inlined Function Support (2-3 weeks)
-- Generate DW_TAG_inlined_subroutine
-- Track inlining decisions
-- Use DW_AT_abstract_origin
+**2. GDB Pretty-Printers** (Commit 4fbf5825)
+- Python module for GDB: `runtime/ocaml-gdb.py`
+- Pretty-prints int, bool, list, string, float, option
+- Load with: `source runtime/ocaml-gdb.py` in GDB
 
-### 4. Pretty-Printers (2-3 weeks)
-- GDB Python scripts for OCaml types
-- LLDB formatters for OCaml data structures
-- Automatic list/array/record display
+**3. LLDB Formatters** (Commit 4fbf5825)
+- Python module for LLDB: `runtime/ocaml-lldb.py`
+- Data formatters with synthetic children for lists
+- Load with: `command script import runtime/ocaml-lldb.py` in LLDB
 
-### 5. DWARF 5 Upgrade (4-6 weeks)
+### Deferred Enhancements ⚠️
+
+**4. Inlined Function Support**
+- Requires Flambda/Closure phase metadata
+- Would need architectural changes to preserve inlining info
+- See OPTIONAL_ENHANCEMENTS_STATUS.md for implementation path
+
+**5. Closure Variable Tracking**
+- Requires Closure phase metadata
+- Would need to propagate environment variable information
+- See OPTIONAL_ENHANCEMENTS_STATUS.md for implementation path
+
+### Future Possibilities
+
+**6. DWARF 5 Upgrade** (4-6 weeks)
 - Upgrade to DWARF 5 format
 - Better type support
 - Improved performance

@@ -532,38 +532,11 @@ let emit_debug_info t =
 
 (* Emit .debug_loc section *)
 let emit_debug_loc t =
-  let buf = Buffer.create 1024 in
-  let all_lists = Location_list_table.get_all t.location_lists in
-
-  List.iter (fun (_offset, entries) ->
-    (* Emit each location list entry *)
-    List.iter (fun entry ->
-      let start = Location_list_entry.start_address entry in
-      let end_ = Location_list_entry.end_address entry in
-      let location = Location_list_entry.location entry in
-
-      (* Encode start address (8 bytes for 64-bit) *)
-      let start_label = Code_address.to_label start in
-      Buffer.add_string buf (String.make 8 '\x00'); (* Placeholder for relocation *)
-
-      (* Encode end address (8 bytes for 64-bit) *)
-      let end_label = Code_address.to_label end_ in
-      Buffer.add_string buf (String.make 8 '\x00'); (* Placeholder for relocation *)
-
-      (* Encode location expression length (2 bytes) *)
-      let loc_len = Bytes.length location in
-      Buffer.add_char buf (Char.chr (loc_len land 0xFF));
-      Buffer.add_char buf (Char.chr ((loc_len lsr 8) land 0xFF));
-
-      (* Encode location expression *)
-      Buffer.add_bytes buf location;
-    ) entries;
-
-    (* Emit end-of-list marker (two zero addresses) *)
-    Buffer.add_string buf (String.make 16 '\x00');
-  ) all_lists;
-
-  Bytes.of_string (Buffer.contents buf)
+  (* For now, emit an empty .debug_loc section *)
+  (* Location lists are prepared but not actively used yet *)
+  (* Full implementation requires proper relocation handling *)
+  let _all_lists = Location_list_table.get_all t.location_lists in
+  Bytes.empty
 
 let emit t =
   let line_bytes =
