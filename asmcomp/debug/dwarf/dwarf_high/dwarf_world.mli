@@ -80,6 +80,29 @@ type type_offsets = {
 (** Add standard OCaml type DIEs to the world and return their offsets *)
 val add_standard_types : t -> type_offsets
 
+(** Create a member DIE for a struct/union field *)
+val create_member : name:string -> type_ref:int -> byte_offset:int -> Proto_die.t
+
+(** Create a tuple type DIE (anonymous struct with numbered fields).
+    @param name the type name (e.g., "int * float")
+    @param field_types list of type references for each field *)
+val create_tuple_type : name:string -> field_types:int list -> Proto_die.t
+
+(** Create a record type DIE (named struct with field names).
+    @param name the type name
+    @param fields list of (field_name, type_ref) pairs *)
+val create_record_type : name:string -> fields:(string * int) list -> Proto_die.t
+
+(** Create a variant type DIE (discriminated union).
+    @param name the type name
+    @param variants list of (constructor_name, optional_payload_type_ref) pairs *)
+val create_variant_type : name:string -> variants:(string * int option) list -> Proto_die.t
+
+(** Create an array type DIE.
+    @param element_type_ref type reference for array elements
+    @param length array length *)
+val create_array_type : element_type_ref:int -> length:int -> Proto_die.t
+
 (** Emit all DWARF sections to a buffer *)
 type relocation = {
   offset : int;

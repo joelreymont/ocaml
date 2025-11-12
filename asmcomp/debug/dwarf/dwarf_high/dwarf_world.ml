@@ -108,6 +108,115 @@ let create_base_type ~name ~byte_size ~encoding =
   let die = Proto_die.with_encoding die encoding in
   die
 
+(** Create a member DIE for a struct/union field *)
+let create_member ~name ~type_ref ~byte_offset =
+  let member = Proto_die.create Dwarf_tag.DW_TAG_member in
+  let member = Proto_die.with_name member name in
+  let member = Proto_die.with_type member type_ref in
+  let member = Proto_die.add_attribute member {
+    attr = Dwarf_attributes.DW_AT_data_member_location;
+    value = Dwarf_value.Constant (Int byte_offset);
+    form = Dwarf_form.DW_FORM_data1;
+  } in
+  member
+
+(** Create a tuple type DIE (anonymous struct with numbered fields) *)
+let create_tuple_type ~name ~field_types =
+  let tuple_die = Proto_die.create Dwarf_tag.DW_TAG_structure_type in
+  let tuple_die = Proto_die.with_name tuple_die name in
+  (* OCaml tuples are represented as blocks with header word (8 bytes) + fields *)
+  let tuple_size = 8 + (List.length field_types * 8) in
+  let tuple_die = Proto_die.with_byte_size tuple_die tuple_size in
+
+  (* Add fields with names field0, field1, etc. starting at offset 8 (after header) *)
+  let fields = List.mapi (fun i type_ref ->
+    create_member
+      ~name:(Printf.sprintf "field%d" i)
+      ~type_ref
+      ~byte_offset:(8 + i * 8)
+  ) field_types in
+
+  let tuple_die = Proto_die.add_children tuple_die fields in
+  tuple_die
+
+(** Create a record type DIE (named struct with field names) *)
+let create_record_type ~name ~fields =
+  let record_die = Proto_die.create Dwarf_tag.DW_TAG_structure_type in
+  let record_die = Proto_die.with_name record_die name in
+  (* OCaml records are blocks with header word (8 bytes) + fields *)
+  let record_size = 8 + (List.length fields * 8) in
+  let record_die = Proto_die.with_byte_size record_die record_size in
+
+  (* Add named fields starting at offset 8 (after header) *)
+  let field_dies = List.mapi (fun i (field_name, type_ref) ->
+    create_member
+      ~name:field_name
+      ~type_ref
+      ~byte_offset:(8 + i * 8)
+  ) fields in
+
+  let record_die = Proto_die.add_children record_die field_dies in
+  record_die
+
+(** Create a variant type DIE (discriminated union) *)
+let create_variant_type ~name ~variants =
+  (* OCaml variants are represented with a tag (int) in first field
+     followed by optional payload. We model this as a struct with:
+     - tag field (int)
+     - union of all possible payloads *)
+  let variant_die = Proto_die.create Dwarf_tag.DW_TAG_structure_type in
+  let variant_die = Proto_die.with_name variant_die name in
+
+  (* Calculate size: header (8) + tag (8) + max payload size *)
+  let max_payload_size = List.fold_left (fun acc (_, payload_opt) ->
+    match payload_opt with
+    | None -> acc
+    | Some _ -> max acc 8  (* Each payload is at least one word *)
+  ) 0 variants in
+  let variant_size = 8 + 8 + max_payload_size in
+  let variant_die = Proto_die.with_byte_size variant_die variant_size in
+
+  (* Add tag field - references the int type (offset 0x20) *)
+  let tag_member = create_member ~name:"tag" ~type_ref:0x20 ~byte_offset:8 in
+  let variant_die = Proto_die.add_child variant_die tag_member in
+
+  (* Add union for payloads if any constructors have data *)
+  let has_payloads = List.exists (fun (_, payload) -> Option.is_some payload) variants in
+  if has_payloads then begin
+    let union_die = Proto_die.create Dwarf_tag.DW_TAG_union_type in
+    let union_die = Proto_die.with_name union_die (name ^ "_payload") in
+    let union_die = Proto_die.with_byte_size union_die max_payload_size in
+
+    (* Add a variant member for each constructor with payload *)
+    let variant_members = List.filter_map (fun (constr_name, payload_opt) ->
+      match payload_opt with
+      | None -> None
+      | Some type_ref ->
+          Some (create_member ~name:constr_name ~type_ref ~byte_offset:0)
+    ) variants in
+
+    let union_die = Proto_die.add_children union_die variant_members in
+    let variant_die = Proto_die.add_child variant_die union_die in
+    variant_die
+  end else
+    variant_die
+
+(** Create an array type DIE *)
+let create_array_type ~element_type_ref ~length =
+  let array_die = Proto_die.create Dwarf_tag.DW_TAG_array_type in
+  let array_die = Proto_die.with_type array_die element_type_ref in
+
+  (* Add subrange for array dimension *)
+  let subrange = Proto_die.create Dwarf_tag.DW_TAG_subrange_type in
+  let subrange = Proto_die.add_attribute subrange {
+    attr = Dwarf_attributes.DW_AT_upper_bound;
+    value = Dwarf_value.Constant (Int (length - 1));
+    form = Dwarf_form.DW_FORM_data4;
+  } in
+
+  let array_die = Proto_die.add_child array_die subrange in
+  array_die
+
 (** Initialize standard OCaml types and add them to the world.
     Returns offsets for each type so they can be referenced. *)
 type type_offsets = {
