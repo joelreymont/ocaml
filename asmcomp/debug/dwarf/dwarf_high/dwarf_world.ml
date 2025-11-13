@@ -62,12 +62,12 @@ let create_cu_die t =
   let cu = Proto_die.add_attribute cu {
     attr = DW_AT_producer;
     value = String t.producer;
-    form = DW_FORM_strp;
+    form = DW_FORM_string;  (* DWARF 5: inline strings *)
   } in
   let cu = Proto_die.add_attribute cu {
     attr = DW_AT_comp_dir;
     value = String t.comp_dir;
-    form = DW_FORM_strp;
+    form = DW_FORM_string;  (* DWARF 5: inline strings *)
   } in
   let cu = Proto_die.add_attribute cu {
     attr = DW_AT_language;
@@ -194,13 +194,15 @@ type section_data = {
   debug_abbrev : bytes;
   debug_str : bytes;
   debug_str_labels : (string * (string * int)) list;  (* (label, (string, offset)) for emission *)
+  debug_str_offsets : (bytes * str_relocation list) option;  (* DWARF 5: string offsets with relocations *)
   debug_line : (bytes * relocation list) option;  (* line table with address relocations *)
   debug_loc : bytes option;
   debug_ranges : bytes option;
 }
 
 (* Collect all strings from DIEs that use DW_FORM_strp *)
-let rec collect_strings die acc =
+(* NOTE: Unused with DW_FORM_string, but kept for reference *)
+let rec _collect_strings die acc =
   (* Collect strings from this DIE's attributes *)
   let acc = List.fold_left (fun acc (attr : Proto_die.attribute) ->
     match attr.value, attr.form with
@@ -209,30 +211,34 @@ let rec collect_strings die acc =
   ) acc (Proto_die.attributes die) in
   (* Recursively collect from children *)
   List.fold_left (fun acc child ->
-    collect_strings child acc
+    _collect_strings child acc
   ) acc (Proto_die.children die)
 
-(* Build string table and return (bytes, offset_map, label_to_string_and_offset)
+(* Build string table and return (bytes, offset_map, index_map, label_to_string_and_offset)
    The bytes contain the raw string data (no labels).
    The offset_map maps strings to their byte offsets in .debug_str.
+   The index_map maps strings to their index (for DWARF 5 DW_FORM_strx).
    The label_to_string_and_offset maps labels to (string, offset) for emission. *)
-let build_string_table strings =
+(* NOTE: Unused with DW_FORM_string, but kept for reference *)
+let _build_string_table strings =
   (* Remove duplicates and sort for determinism *)
   let unique_strings = List.sort_uniq String.compare strings in
   let buf = Buffer.create 1024 in
   let offset_map = ref [] in
+  let index_map = ref [] in  (* DWARF 5: string -> index mapping *)
   let label_to_string_and_offset = ref [] in
   let label_counter = ref 0 in
-  List.iter (fun s ->
+  List.iteri (fun idx s ->
     let offset = Buffer.length buf in
     let label = Printf.sprintf "Lstr_%d" !label_counter in
     offset_map := (s, offset) :: !offset_map;
+    index_map := (s, idx) :: !index_map;  (* DWARF 5: track index *)
     label_to_string_and_offset := (label, (s, offset)) :: !label_to_string_and_offset;
     incr label_counter;
     Buffer.add_string buf s;
     Buffer.add_char buf '\000'  (* Null terminator *)
   ) unique_strings;
-  (Bytes.of_string (Buffer.contents buf), List.rev !offset_map, List.rev !label_to_string_and_offset)
+  (Bytes.of_string (Buffer.contents buf), List.rev !offset_map, List.rev !index_map, List.rev !label_to_string_and_offset)
 
 (* emit_debug_str is no longer needed - string table is built in emit() *)
 
@@ -243,7 +249,7 @@ let emit_debug_abbrev _t =
      offset 0 and find the same table structure. *)
   Standard_abbrevs.emit_standard_table ()
 
-let write_attribute_value buf (value : Dwarf_value.t) (form : Dwarf_form.t) str_offsets relocs str_relocs =
+let write_attribute_value buf (value : Dwarf_value.t) (form : Dwarf_form.t) str_indices str_offsets relocs str_relocs =
   match form, value with
   | DW_FORM_addr, Address addr ->
       (* 8-byte address for 64-bit systems *)
@@ -277,8 +283,16 @@ let write_attribute_value buf (value : Dwarf_value.t) (form : Dwarf_form.t) str_
   | DW_FORM_string, String s ->
       Buffer.add_string buf s;
       Buffer.add_char buf '\000'
+  | DW_FORM_strx1, String s ->
+      (* DWARF 5: Look up string index (not offset) *)
+      let str_index = match List.assoc_opt s str_indices with
+        | Some idx -> idx
+        | None -> 0  (* Fallback to first string *)
+      in
+      (* Write 1-byte index into .debug_str_offsets *)
+      Buffer.add_char buf (Char.chr (str_index land 0xff))
   | DW_FORM_strp, String s ->
-      (* Look up string offset in string table for relocation *)
+      (* DWARF 4: Look up string offset in string table for relocation *)
       let str_offset = match List.assoc_opt s str_offsets with
         | Some off -> off
         | None -> 0  (* Fallback to first string *)
@@ -356,7 +370,7 @@ let build_abbrev_map cu_with_children =
   assign_codes cu_with_children;
   die_map
 
-let rec write_die buf die die_map str_offsets relocs_ref str_relocs_ref =
+let rec write_die buf die die_map str_indices str_offsets relocs_ref str_relocs_ref =
   (* Look up abbreviation code for this DIE *)
   let abbrev_code =
     try Hashtbl.find die_map die
@@ -371,17 +385,17 @@ let rec write_die buf die die_map str_offsets relocs_ref str_relocs_ref =
   Leb128.write_uleb128 buf abbrev_code;
   (* Write attribute values in the order they appear in the abbreviation *)
   List.iter (fun (attr : Proto_die.attribute) ->
-    write_attribute_value buf attr.value attr.form str_offsets relocs_ref str_relocs_ref
+    write_attribute_value buf attr.value attr.form str_indices str_offsets relocs_ref str_relocs_ref
   ) (Proto_die.attributes die);
   (* Recursively write children *)
   List.iter (fun child ->
-    write_die buf child die_map str_offsets relocs_ref str_relocs_ref
+    write_die buf child die_map str_indices str_offsets relocs_ref str_relocs_ref
   ) (Proto_die.children die);
   (* Write null DIE to terminate children list if this DIE has children *)
   if Proto_die.has_children die && List.length (Proto_die.children die) > 0 then
     Buffer.add_char buf '\000'
 
-let emit_debug_info_with_str_offsets t str_offsets =
+let emit_debug_info_with_str_indices t str_indices str_offsets =
   let buf = Buffer.create 2048 in
 
   (* Build DIE tree *)
@@ -399,7 +413,7 @@ let emit_debug_info_with_str_offsets t str_offsets =
   let die_buf = Buffer.create 2048 in
 
   (* Write CU DIE and all its children with proper abbrev codes *)
-  write_die die_buf cu_with_children die_map str_offsets relocs_ref str_relocs_ref;
+  write_die die_buf cu_with_children die_map str_indices str_offsets relocs_ref str_relocs_ref;
 
   let die_bytes = Buffer.contents die_buf in
   let die_length = String.length die_bytes in
@@ -417,7 +431,7 @@ let emit_debug_info_with_str_offsets t str_offsets =
     Buffer.add_char buf (Char.chr ((unit_length lsr (i * 8)) land 0xff))
   done;
   (* DWARF version (2 bytes) *)
-  Buffer.add_string buf "\x04\x00"; (* Version 4 *)
+  Buffer.add_string buf "\x05\x00"; (* Version 5 *)
   (* Abbreviation table offset (4 bytes) - always 0 for first CU *)
   Buffer.add_string buf "\x00\x00\x00\x00";
   (* Address size (1 byte) *)
@@ -443,23 +457,20 @@ let emit t =
       Some (bytes, relocs)
   in
 
-  (* Build string table once to avoid inconsistency *)
-  let cu = compilation_unit t in
-  let cu_with_children = Proto_die.add_children cu (all_dies t) in
-  let strings = collect_strings cu_with_children [] in
-  let str_bytes, str_offset_map, label_to_string_and_offset = build_string_table strings in
-
-  (* Emit debug_info using the string offset map *)
-  let debug_info_bytes, debug_info_relocs, debug_str_relocs =
-    emit_debug_info_with_str_offsets t str_offset_map in
+  (* DWARF 5 with DW_FORM_string: No string table needed!
+     Strings are embedded directly in .debug_info section.
+     This avoids the macOS linker crash with section-relative relocations. *)
+  let debug_info_bytes, debug_info_relocs, _debug_str_relocs =
+    emit_debug_info_with_str_indices t [] [] in
 
   {
     debug_info = debug_info_bytes;
     debug_info_relocs = debug_info_relocs;
-    debug_str_relocs = debug_str_relocs;
+    debug_str_relocs = [];  (* No string relocations needed with DW_FORM_string *)
     debug_abbrev = emit_debug_abbrev t;
-    debug_str = str_bytes;
-    debug_str_labels = label_to_string_and_offset;
+    debug_str = Bytes.empty;  (* Empty - strings are inline in .debug_info *)
+    debug_str_labels = [];  (* No labels needed *)
+    debug_str_offsets = None;  (* Not using DWARF 5 string offsets *)
     debug_line = line_data;
     debug_loc =
       if Location_list_table.is_empty t.location_lists then None
