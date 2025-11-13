@@ -451,7 +451,9 @@ let reset_debug_info () =
 (* We only display .file if the file has not been seen before. We
    display .loc for every instruction. *)
 let emit_debug_info_gen dbg file_emitter loc_emitter =
-  if is_cfi_enabled () &&
+  (* Skip .file/.loc directives when using DWARF - we generate our own .debug_line section *)
+  if not (Dwarf_flags.is_dwarf_enabled ()) &&
+     is_cfi_enabled () &&
     (!Clflags.debug || Config.with_frame_pointers) then begin
     match List.rev dbg with
     | [] -> ()

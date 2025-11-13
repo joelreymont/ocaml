@@ -1,3 +1,6 @@
+set disable-randomization off
+set debuginfod enabled off
+directory .
 break breakpoint.ml:5
 run
 info breakpoints
