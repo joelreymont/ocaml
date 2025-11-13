@@ -74,6 +74,11 @@ let create_cu_die t =
     value = Constant (Int (Dwarf_language.to_code t.language));
     form = DW_FORM_data1;
   } in
+  let cu = Proto_die.add_attribute cu {
+    attr = DW_AT_stmt_list;
+    value = Sec_offset 0;  (* Offset 0 in .debug_line section *)
+    form = DW_FORM_sec_offset;
+  } in
   Proto_die.set_has_children cu true
 
 let add_die t die =
@@ -132,27 +137,54 @@ let create_base_type ~name ~byte_size ~encoding =
 (** Initialize standard OCaml types and add them to the world.
     Returns offsets for each type so they can be referenced. *)
 let add_standard_types t =
-  (* Calculate DIE offsets based on CU structure.
-     CU header: 4 (length) + 2 (version) + 4 (abbrev_offset) + 1 (address_size) = 11 bytes
-     CU DIE: 1 (abbrev) + 4 (name:strp) + 4 (producer:strp) + 4 (comp_dir:strp) + 1 (language:data1) = 14 bytes
-     First child DIE starts at offset: 11 + 14 = 25 (0x19)
+  (* Calculate DIE offsets based on DWARF 5 CU structure with inline strings.
 
-     Base type DIE structure:
-     - Abbrev code: 1 byte
-     - DW_AT_name (DW_FORM_strp): 4 bytes
+     DWARF 5 CU header: 12 bytes
+     - Unit length: 4 bytes
+     - Version: 2 bytes
+     - Unit type: 1 byte
+     - Address size: 1 byte
+     - Abbrev offset: 4 bytes
+
+     CU DIE with DW_FORM_string (variable size):
+     - Abbrev code (ULEB128, typically 1 byte): 1 byte
+     - DW_AT_name (DW_FORM_string): len(source_file) + 1 (null terminator)
+     - DW_AT_producer (DW_FORM_string): len(producer) + 1
+     - DW_AT_comp_dir (DW_FORM_string): len(comp_dir) + 1
+     - DW_AT_language (DW_FORM_data1): 1 byte
+     - DW_AT_stmt_list (DW_FORM_sec_offset): 4 bytes
+
+     Base type DIE with DW_FORM_string (variable size):
+     - Abbrev code (ULEB128, typically 1 byte): 1 byte
+     - DW_AT_name (DW_FORM_string): len(type_name) + 1
      - DW_AT_byte_size (DW_FORM_data1): 1 byte
-     - DW_AT_encoding (DW_FORM_data1): 1 byte
-     Total: 7 bytes per base type DIE *)
+     - DW_AT_encoding (DW_FORM_data1): 1 byte *)
 
-  let cu_header_size = 11 in
-  let cu_die_size = 14 in
-  let base_type_die_size = 7 in
+  let cu_header_size = 12 in
+
+  (* Calculate actual CU DIE size based on string lengths *)
+  let cu_die_size =
+    1 +  (* abbrev code *)
+    (String.length t.source_file + 1) +  (* DW_AT_name *)
+    (String.length t.producer + 1) +     (* DW_AT_producer *)
+    (String.length t.comp_dir + 1) +     (* DW_AT_comp_dir *)
+    1 +  (* DW_AT_language *)
+    4    (* DW_AT_stmt_list (DW_FORM_sec_offset) *)
+  in
 
   (* First type DIE (value) starts after CU header and CU DIE *)
   let value_offset = cu_header_size + cu_die_size in
 
+  (* Calculate base type DIE size for "value" *)
+  let value_die_size =
+    1 +  (* abbrev code *)
+    (String.length "value" + 1) +  (* DW_AT_name *)
+    1 +  (* DW_AT_byte_size *)
+    1    (* DW_AT_encoding *)
+  in
+
   (* Second type DIE (int) starts after first type DIE *)
-  let int_offset = value_offset + base_type_die_size in
+  let int_offset = value_offset + value_die_size in
 
   (* OCaml value: 8-byte pointer to any OCaml value *)
   let value_die = create_base_type
