@@ -639,14 +639,15 @@ module Dwarf_helpers = struct
                Printf.fprintf oc "\t.quad %s\n" symbol;
                emit_from (reloc_offset + 8) rest
            | Str_reloc r ->
-               (* Emit string table reference as label-relative offset.
-                  This allows the linker to properly adjust offsets when
-                  merging .debug_str sections from multiple compilation units.
-                  The expression (label - Ldebug_str_start) gives the offset
-                  of the string within this CU's .debug_str, which the linker
-                  will automatically adjust when merging sections. *)
-               let str_label = r.Dwarf_world.str_label in
-               Printf.fprintf oc "\t.long %s - Ldebug_str_start\n" str_label;
+               (* Emit string table offset as plain numeric value.
+                  LIMITATION: This approach works for single-CU debugging but
+                  breaks when linking multiple .o files together, because each CU's
+                  .debug_info still points to offsets relative to its own .debug_str
+                  section start, not the merged section. A proper fix would require
+                  section-relative relocations, but those cause linker crashes on
+                  macOS (Mach-O) and may not be well-supported. *)
+               let str_offset = r.Dwarf_world.str_offset in
+               Printf.fprintf oc "\t.long %d\n" str_offset;
                emit_from (reloc_offset + 4) rest)
     in
     emit_from 0 sorted
@@ -654,16 +655,14 @@ module Dwarf_helpers = struct
   let emit_debug_str_with_labels oc bytes labels =
     (* Emit the .debug_str section with labels before each string.
        The bytes contain raw string data (null-terminated strings concatenated).
-       The labels list contains (label, string) pairs in order. *)
+       The labels list contains (label, (string, offset)) tuples in order. *)
     output_string oc "Ldebug_str_start:\n";
-    let offset = ref 0 in
-    List.iter (fun (label, str) ->
+    List.iter (fun (label, (str, offset)) ->
       Printf.fprintf oc "%s:\n" label;
-      (* Emit the string bytes *)
+      (* Emit the string bytes starting at the recorded offset *)
       let len = String.length str + 1 in  (* +1 for null terminator *)
-      let str_bytes = Bytes.sub bytes !offset len in
-      emit_section_bytes oc str_bytes;
-      offset := !offset + len
+      let str_bytes = Bytes.sub bytes offset len in
+      emit_section_bytes oc str_bytes
     ) labels
 
   let emit_dwarf oc =
