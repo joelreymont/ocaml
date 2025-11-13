@@ -1835,7 +1835,11 @@ module Default = struct
     let _dump_into_file = set dump_into_file
     let _dump_dir s = dump_dir := Some s
     let _for_pack s = for_package := (Some s)
-    let _g = set debug
+    let _g () =
+      debug := true;
+      (* Enable minimal DWARF by default when -g is specified *)
+      if !gdwarf_fidelity = None then
+        gdwarf_fidelity := Some Minimal
     let _no_g = clear debug
     let _gdwarf_fidelity level =
       match String.lowercase_ascii level with

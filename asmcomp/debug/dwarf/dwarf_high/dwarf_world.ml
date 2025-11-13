@@ -396,14 +396,18 @@ let write_attribute_value buf (value : Dwarf_value.t) (form : Dwarf_form.t) str_
       Buffer.add_string buf s;
       Buffer.add_char buf '\000'
   | DW_FORM_strp, String s ->
-      (* Look up string offset in string table *)
+      (* Create a relocation for section-relative offset *)
       let offset = match List.assoc_opt s str_offsets with
         | Some off -> off
         | None -> 0
       in
-      (* Write 4-byte offset *)
-      for i = 0 to 3 do
-        Buffer.add_char buf (Char.chr ((offset lsr (i * 8)) land 0xff))
+      let current_offset = Buffer.length buf in
+      (* Label format: ".debug_str+offset" for section-relative reference *)
+      let label = Printf.sprintf ".debug_str+%d" offset in
+      relocs := { offset = current_offset; label } :: !relocs;
+      (* Write placeholder zeros - will be replaced by assembler *)
+      for _ = 0 to 3 do
+        Buffer.add_char buf '\000'
       done
   | DW_FORM_flag, Flag b ->
       Buffer.add_char buf (if b then '\001' else '\000')

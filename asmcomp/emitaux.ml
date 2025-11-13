@@ -631,8 +631,15 @@ module Dwarf_helpers = struct
             done;
             Buffer.contents buf
           in
-          (* Check if this is a label difference (high_pc size) or label address *)
-          if String.contains reloc.Dwarf_world.label '-' then begin
+          (* Check relocation type by label format *)
+          if String.contains reloc.Dwarf_world.label '+' then begin
+            (* Section-relative offset (for DW_FORM_strp) - emit as 4-byte .long *)
+            (* Format: ".debug_str+offset" *)
+            let label = reloc.Dwarf_world.label in
+            Printf.fprintf oc "\t.long %s\n" label;
+            (* Continue after the 4-byte offset *)
+            emit_from (reloc_offset + 4) rest
+          end else if String.contains reloc.Dwarf_world.label '-' then begin
             (* Label difference - emit as 4-byte .long *)
             (* Parse "end_label - start_label" *)
             let parts = String.split_on_char '-' reloc.Dwarf_world.label in
