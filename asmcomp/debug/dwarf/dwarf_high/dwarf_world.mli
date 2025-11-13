@@ -26,6 +26,7 @@ type t
 val create :
   producer:string ->
   comp_dir:string ->
+  source_file:string ->
   language:Dwarf_language.t ->
   unit ->
   t
@@ -96,7 +97,7 @@ type section_data = {
   debug_abbrev : bytes;
   debug_str : bytes;
   debug_str_labels : (string * string) list;  (* (label, string) pairs for emission *)
-  debug_line : bytes option;
+  debug_line : (bytes * relocation list) option;  (* line table with address relocations *)
   debug_loc : bytes option;
   debug_ranges : bytes option;
 }

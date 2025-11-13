@@ -683,9 +683,9 @@ module Dwarf_helpers = struct
           emit_debug_str_with_labels oc sections.debug_str sections.debug_str_labels;
           (* Optional sections *)
           (match sections.debug_line with
-           | Some bytes ->
+           | Some (bytes, relocs) ->
                output_string oc "\t.section __DWARF,__debug_line,regular,debug\n";
-               emit_section_bytes oc bytes
+               emit_section_bytes_with_both_relocs oc bytes relocs []
            | None -> ());
           (match sections.debug_loc with
            | Some bytes ->
@@ -707,9 +707,9 @@ module Dwarf_helpers = struct
           emit_debug_str_with_labels oc sections.debug_str sections.debug_str_labels;
           (* Optional sections *)
           (match sections.debug_line with
-           | Some bytes ->
+           | Some (bytes, relocs) ->
                output_string oc "\t.section .debug_line,\"\",@progbits\n";
-               emit_section_bytes oc bytes
+               emit_section_bytes_with_both_relocs oc bytes relocs []
            | None -> ());
           (match sections.debug_loc with
            | Some bytes ->

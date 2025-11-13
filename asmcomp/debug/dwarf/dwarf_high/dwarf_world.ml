@@ -24,6 +24,7 @@ type t = {
   (* Compilation unit info *)
   producer : string;
   comp_dir : string;
+  source_file : string;  (* Main source file for this CU *)
   language : Dwarf_language.t;
 
   (* DIE tree *)
@@ -39,12 +40,13 @@ type t = {
   line_number_table : Line_number_table.t;
 }
 
-let create ~producer ~comp_dir ~language () =
+let create ~producer ~comp_dir ~source_file ~language () =
   let line_table = Line_number_table.create () in
   Line_number_table.set_comp_dir line_table comp_dir;
   {
     producer;
     comp_dir;
+    source_file;
     language;
     dies = [];
     cu_die = None;
@@ -56,7 +58,7 @@ let create ~producer ~comp_dir ~language () =
 
 let create_cu_die t =
   let cu = Proto_die.create Dwarf_tag.DW_TAG_compile_unit in
-  let cu = Proto_die.with_name cu (Filename.basename t.comp_dir) in
+  let cu = Proto_die.with_name cu t.source_file in
   let cu = Proto_die.add_attribute cu {
     attr = DW_AT_producer;
     value = String t.producer;
@@ -192,7 +194,7 @@ type section_data = {
   debug_abbrev : bytes;
   debug_str : bytes;
   debug_str_labels : (string * string) list;  (* (label, string) pairs for emission *)
-  debug_line : bytes option;
+  debug_line : (bytes * relocation list) option;  (* line table with address relocations *)
   debug_loc : bytes option;
   debug_ranges : bytes option;
 }
@@ -355,7 +357,15 @@ let build_abbrev_map cu_with_children =
 
 let rec write_die buf die die_map str_offsets relocs_ref str_relocs_ref =
   (* Look up abbreviation code for this DIE *)
-  let abbrev_code = try Hashtbl.find die_map die with Not_found -> 1 in
+  let abbrev_code =
+    try Hashtbl.find die_map die
+    with Not_found ->
+      failwith (Printf.sprintf
+        "Internal error: DIE missing from abbrev map (tag=%s, has_children=%b). \
+         This indicates the DIE structure doesn't match any standard abbreviation."
+        (Dwarf_tag.to_string (Proto_die.tag die))
+        (Proto_die.has_children die))
+  in
   (* Write abbreviation code *)
   Leb128.write_uleb128 buf abbrev_code;
   (* Write attribute values in the order they appear in the abbreviation *)
@@ -422,10 +432,14 @@ let emit_debug_info_with_str_offsets t str_offsets =
   (Bytes.of_string (Buffer.contents buf), relocs, str_relocs)
 
 let emit t =
-  let line_bytes =
+  let line_data =
     let files = Line_number_table.files t.line_number_table in
     if List.length files = 0 then None
-    else Some (Line_number_table.emit t.line_number_table)
+    else
+      let bytes, reloc_pairs = Line_number_table.emit t.line_number_table in
+      (* Convert (int * string) list to relocation list *)
+      let relocs = List.map (fun (offset, label) -> { offset; label }) reloc_pairs in
+      Some (bytes, relocs)
   in
 
   (* Build string table once to avoid inconsistency *)
@@ -445,7 +459,7 @@ let emit t =
     debug_abbrev = emit_debug_abbrev t;
     debug_str = str_bytes;
     debug_str_labels = label_to_string;
-    debug_line = line_bytes;
+    debug_line = line_data;
     debug_loc =
       if Location_list_table.is_empty t.location_lists then None
       else Some (Bytes.create 0); (* Placeholder *)
