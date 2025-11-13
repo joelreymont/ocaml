@@ -85,8 +85,10 @@ val debug_full : bool ref
 
 (* DWARF types *)
 type dwarf_fidelity =
-  | Upstream_compatible
-  | Enhanced
+  | Minimal              (* Basic function-level debugging *)
+  | Standard             (* Add line numbers and basic types *)
+  | Enhanced             (* Full debugging with variables and type information *)
+  | Upstream_compatible  (* Legacy: equivalent to Minimal *)
 
 type dwarf_fission =
   | Fission_none

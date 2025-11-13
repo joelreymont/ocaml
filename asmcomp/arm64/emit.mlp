@@ -1387,14 +1387,12 @@ let data l =
 
 let begin_assembly() =
   reset_debug_info();
-  (* Initialize DWARF generation if enabled *)
-  if Dwarf_flags.is_dwarf_enabled () then begin
-    let unit_name = Compilenv.current_unit_name () in
-    let source_file = unit_name ^ ".ml" in
-    let compilation_dir = Sys.getcwd () in
-    let producer = "OCaml " ^ Sys.ocaml_version in
-    Emitaux.Dwarf_helpers.init ~source_file ~compilation_dir ~producer
-  end;
+  (* Always initialize DWARF state (resets to None if disabled) *)
+  let unit_name = Compilenv.current_unit_name () in
+  let source_file = unit_name ^ ".ml" in
+  let compilation_dir = Sys.getcwd () in
+  let producer = "OCaml " ^ Sys.ocaml_version in
+  Emitaux.Dwarf_helpers.init ~source_file ~compilation_dir ~producer;
   `	.file	\"\"\n`;  (* PR#7037 *)
   let lbl_begin = Compilenv.make_symbol (Some "data_begin") in
   `	.data\n`;

@@ -1,7 +1,7 @@
 (* TEST
  native;
- set OCAMLPARAM = "dwarf_fidelity=enhanced,_";
- flags = "-g";
+ 
+ flags = "-g -gdwarf-fidelity enhanced";
 *)
 
 (* Test array and list operations with DWARF *)

@@ -41,6 +41,7 @@ type block = bytes
 type t =
   | Address of address
   | Label_address of string  (** Symbolic address requiring relocation *)
+  | Label_difference of string * string  (** Difference between two labels (end - start) *)
   | Block of block
   | Constant of constant
   | String of string

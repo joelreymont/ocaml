@@ -15,8 +15,10 @@
 [@@@ocaml.warning "+a-4-30-40-41-42"]
 
 type dwarf_fidelity = Clflags.dwarf_fidelity =
-  | Upstream_compatible
+  | Minimal
+  | Standard
   | Enhanced
+  | Upstream_compatible
 
 type dwarf_fission = Clflags.dwarf_fission =
   | Fission_none

@@ -107,10 +107,26 @@ let with_pc_range t ~start ~end_ =
     value = addr_value start;
     form = DW_FORM_addr;
   } in
+  (* high_pc is now a size (offset from low_pc), not an absolute address *)
+  let size_value =
+    match Code_address.absolute start, Code_address.absolute end_ with
+    | Some s, Some e -> Dwarf_value.Constant (Int (Int64.to_int (Int64.sub e s)))
+    | _, _ ->
+        (* Both are labels - emit as label difference *)
+        let start_lbl = match Code_address.label start with
+          | Some l -> l
+          | None -> failwith "Start address must be a label"
+        in
+        let end_lbl = match Code_address.label end_ with
+          | Some l -> l
+          | None -> failwith "End address must be a label"
+        in
+        Dwarf_value.Label_difference (end_lbl, start_lbl)
+  in
   add_attribute t {
     attr = DW_AT_high_pc;
-    value = addr_value end_;
-    form = DW_FORM_addr;
+    value = size_value;
+    form = DW_FORM_data4;
   }
 
 let with_const_value t value =

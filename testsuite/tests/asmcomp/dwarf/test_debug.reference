@@ -1,7 +1,7 @@
 === DWARF Debugging Test ===
 add: 10 + 20 = 30
-multiply_and_add: (3 * 4) + 5 = 17
 add: 12 + 5 = 17
+multiply_and_add: (3 * 4) + 5 = 17
 factorial(5) = 120
 sum is: normal
 === Test Complete ===

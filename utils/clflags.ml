@@ -58,15 +58,17 @@ and debug_full = ref false              (* For full DWARF support *)
 
 (* DWARF types *)
 type dwarf_fidelity =
-  | Upstream_compatible  (* -gupstream-dwarf *)
-  | Enhanced             (* -gno-upstream-dwarf, default *)
+  | Minimal              (* Basic function-level debugging *)
+  | Standard             (* Add line numbers and basic types *)
+  | Enhanced             (* Full debugging with variables and type information *)
+  | Upstream_compatible  (* Legacy: equivalent to Minimal *)
 
 type dwarf_fission =
   | Fission_none         (* No fission *)
   | Fission_split        (* Split debug info into separate file *)
 
 (* DWARF control flags *)
-let gdwarf_fidelity = ref (Some Enhanced)  (* -gupstream-dwarf / -gno-upstream-dwarf *)
+let gdwarf_fidelity = ref None  (* -gupstream-dwarf / -gno-upstream-dwarf / -gdwarf-fidelity *)
 and dwarf_inlined_frames = ref true     (* -gdwarf-inlined-frames *)
 and dwarf_may_alter_codegen = ref false (* -gdwarf-may-alter-codegen *)
 and dwarf_max_function_complexity = ref None (* -gdwarf-max-function-complexity *)

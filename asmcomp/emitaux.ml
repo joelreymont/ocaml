@@ -530,6 +530,8 @@ module Dwarf_helpers = struct
   let dwarf_state = ref None
 
   let init ~source_file ~compilation_dir ~producer =
+    (* Always reset state at the beginning of each compilation *)
+    dwarf_state := None;
     if Dwarf_flags.is_dwarf_enabled () then begin
       let state = Dwarf.create ~source_file ~compilation_dir ~producer () in
       dwarf_state := Some state
@@ -612,7 +614,6 @@ module Dwarf_helpers = struct
             in
             emit_chunk offset
           end;
-          (* Emit relocation as .quad directive *)
           (* Format symbol name with proper escaping, matching emit_symbol logic *)
           let format_symbol_for_dwarf s =
             let buf = Buffer.create (String.length s + 10) in
@@ -630,10 +631,25 @@ module Dwarf_helpers = struct
             done;
             Buffer.contents buf
           in
-          let symbol = format_symbol_for_dwarf reloc.Dwarf_world.label in
-          Printf.fprintf oc "\t.quad %s\n" symbol;
-          (* Continue after the 8-byte address *)
-          emit_from (reloc_offset + 8) rest
+          (* Check if this is a label difference (high_pc size) or label address *)
+          if String.contains reloc.Dwarf_world.label '-' then begin
+            (* Label difference - emit as 4-byte .long *)
+            (* Parse "end_label - start_label" *)
+            let parts = String.split_on_char '-' reloc.Dwarf_world.label in
+            let end_label = String.trim (List.nth parts 0) in
+            let start_label = String.trim (List.nth parts 1) in
+            let end_sym = format_symbol_for_dwarf end_label in
+            let start_sym = format_symbol_for_dwarf start_label in
+            Printf.fprintf oc "\t.long %s - %s\n" end_sym start_sym;
+            (* Continue after the 4-byte size *)
+            emit_from (reloc_offset + 4) rest
+          end else begin
+            (* Regular label address - emit as 8-byte .quad *)
+            let symbol = format_symbol_for_dwarf reloc.Dwarf_world.label in
+            Printf.fprintf oc "\t.quad %s\n" symbol;
+            (* Continue after the 8-byte address *)
+            emit_from (reloc_offset + 8) rest
+          end
     in
     emit_from 0 sorted_relocs
 

@@ -149,6 +149,17 @@ let mk_no_g f =
   "-no-g", Arg.Unit f,
   " Do not record debugging information (default)"
 
+let mk_gdwarf_fidelity f =
+  "-gdwarf-fidelity", Arg.String f,
+  "<level>  Set DWARF debugging fidelity level:\n\
+  \     minimal   - Basic function-level debugging (default with -g)\n\
+  \     standard  - Add line numbers and basic types\n\
+  \     enhanced  - Full debugging with variables and type information"
+
+let mk_gno_dwarf f =
+  "-gno-dwarf", Arg.Unit f,
+  " Disable DWARF debugging information generation"
+
 let mk_i f =
   "-i", Arg.Unit f, " Print inferred interface"
 
@@ -868,6 +879,8 @@ module type Compiler_options = sig
   val _for_pack : string -> unit
   val _g : unit -> unit
   val _no_g : unit -> unit
+  val _gdwarf_fidelity : string -> unit
+  val _gno_dwarf : unit -> unit
   val _stop_after : string -> unit
   val _i : unit -> unit
   val _i_variance : unit -> unit
@@ -1278,6 +1291,8 @@ struct
     mk_for_pack_opt F._for_pack;
     mk_g_opt F._g;
     mk_no_g F._no_g;
+    mk_gdwarf_fidelity F._gdwarf_fidelity;
+    mk_gno_dwarf F._gno_dwarf;
     mk_function_sections F._function_sections;
     mk_stop_after ~native:true F._stop_after;
     mk_save_ir_after ~native:true F._save_ir_after;
@@ -1822,6 +1837,13 @@ module Default = struct
     let _for_pack s = for_package := (Some s)
     let _g = set debug
     let _no_g = clear debug
+    let _gdwarf_fidelity level =
+      match String.lowercase_ascii level with
+      | "minimal" -> gdwarf_fidelity := Some Minimal
+      | "standard" -> gdwarf_fidelity := Some Standard
+      | "enhanced" -> gdwarf_fidelity := Some Enhanced
+      | _ -> failwith "Invalid DWARF fidelity level. Use: minimal, standard, or enhanced"
+    let _gno_dwarf () = gdwarf_fidelity := None
     let _i = set print_types
     let _impl = Compenv.impl
     let _intf = Compenv.intf

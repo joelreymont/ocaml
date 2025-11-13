@@ -1131,14 +1131,12 @@ let begin_assembly() =
   reset_imp_table();
   float_constants := [];
   all_functions := [];
-  (* Initialize DWARF generation if enabled *)
-  if Dwarf_flags.is_dwarf_enabled () then begin
-    let unit_name = Compilenv.current_unit_name () in
-    let source_file = unit_name ^ ".ml" in
-    let compilation_dir = Sys.getcwd () in
-    let producer = "OCaml " ^ Sys.ocaml_version in
-    Emitaux.Dwarf_helpers.init ~source_file ~compilation_dir ~producer
-  end;
+  (* Always initialize DWARF state (resets to None if disabled) *)
+  let unit_name = Compilenv.current_unit_name () in
+  let source_file = unit_name ^ ".ml" in
+  let compilation_dir = Sys.getcwd () in
+  let producer = "OCaml " ^ Sys.ocaml_version in
+  Emitaux.Dwarf_helpers.init ~source_file ~compilation_dir ~producer;
   if system = S_win64 then begin
     D.extrn "caml_call_gc" NEAR;
     D.extrn "caml_c_call" NEAR;

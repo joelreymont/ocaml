@@ -16,8 +16,10 @@
 
 (** DWARF fidelity mode *)
 type dwarf_fidelity = Clflags.dwarf_fidelity =
-  | Upstream_compatible  (** Emit minimal DWARF compatible with upstream OCaml *)
-  | Enhanced             (** Emit full DWARF debugging information *)
+  | Minimal              (** Basic function-level debugging *)
+  | Standard             (** Add line numbers and basic types *)
+  | Enhanced             (** Full debugging with variables and type information *)
+  | Upstream_compatible  (** Legacy: equivalent to Minimal *)
 
 (** DWARF fission/split-debug mode *)
 type dwarf_fission = Clflags.dwarf_fission =

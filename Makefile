@@ -2632,6 +2632,14 @@ partialclean::
 	  rm -f $$d/*.cm[ioxt] $$d/*.cmti $$d/*.annot $$d/*.s $$d/*.asm \
 	    $$d/*.o $$d/*.obj $$d/*.so $$d/*.dll; \
 	done
+	for d in asmcomp/debug/dwarf/dwarf_low \
+           asmcomp/debug/dwarf/dwarf_low/dwarf_4 \
+           asmcomp/debug/dwarf/dwarf_high \
+           asmcomp/debug/dwarf/dwarf_flags \
+           asmcomp/debug/dwarf/dwarf_ocaml; do \
+	  rm -f $$d/*.cm[ioxt] $$d/*.cmti $$d/*.annot $$d/*.s $$d/*.asm \
+	    $$d/*.o $$d/*.obj $$d/*.so $$d/*.dll; \
+	done
 
 %.depend: beforedepend
 	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I $* $(INCLUDES) \
@@ -2640,7 +2648,17 @@ partialclean::
 asmcomp.depend:: beforedepend $(cvt_emit)
 	$(V_OCAMLDEP)$(OCAMLDEP) $(OC_OCAMLDEPFLAGS) -I asmcomp $(INCLUDES) \
 	  $(OCAMLDEPFLAGS) $(filter-out $(ARCH_SPECIFIC) asmcomp/emit.ml, \
-	                                $(wildcard asmcomp/*.mli asmcomp/*.ml)) > $@
+	                                $(wildcard asmcomp/*.mli asmcomp/*.ml \
+	                                           asmcomp/debug/dwarf/dwarf_low/*.mli \
+	                                           asmcomp/debug/dwarf/dwarf_low/*.ml \
+	                                           asmcomp/debug/dwarf/dwarf_low/dwarf_4/*.mli \
+	                                           asmcomp/debug/dwarf/dwarf_low/dwarf_4/*.ml \
+	                                           asmcomp/debug/dwarf/dwarf_high/*.mli \
+	                                           asmcomp/debug/dwarf/dwarf_high/*.ml \
+	                                           asmcomp/debug/dwarf/dwarf_flags/*.mli \
+	                                           asmcomp/debug/dwarf/dwarf_flags/*.ml \
+	                                           asmcomp/debug/dwarf/dwarf_ocaml/*.mli \
+	                                           asmcomp/debug/dwarf/dwarf_ocaml/*.ml)) > $@
 
 partialclean::
 	rm -f $(addsuffix .depend, $(ARCH_SPECIFIC) asmcomp/emit.ml)

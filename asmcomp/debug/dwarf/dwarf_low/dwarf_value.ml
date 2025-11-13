@@ -32,6 +32,7 @@ type block = bytes
 type t =
   | Address of address
   | Label_address of string  (* For addresses that need relocations *)
+  | Label_difference of string * string  (* Difference between two labels *)
   | Block of block
   | Constant of constant
   | String of string
@@ -45,6 +46,8 @@ let print ppf = function
       Format.fprintf ppf "Address(0x%Lx)" addr
   | Label_address label ->
       Format.fprintf ppf "Label_address(\"%s\")" label
+  | Label_difference (end_lbl, start_lbl) ->
+      Format.fprintf ppf "Label_difference(%s - %s)" end_lbl start_lbl
   | Block bytes ->
       Format.fprintf ppf "Block(%d bytes)" (Bytes.length bytes)
   | Constant const ->

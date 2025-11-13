@@ -54,7 +54,7 @@ let standard_table : standard_entry list = [
     attributes = [
       (DW_AT_name, DW_FORM_strp);
       (DW_AT_low_pc, DW_FORM_addr);
-      (DW_AT_high_pc, DW_FORM_addr);
+      (DW_AT_high_pc, DW_FORM_data4);  (* Size, not address *)
       (DW_AT_external, DW_FORM_flag_present);
     ];
   };
@@ -67,7 +67,7 @@ let standard_table : standard_entry list = [
     attributes = [
       (DW_AT_name, DW_FORM_strp);
       (DW_AT_low_pc, DW_FORM_addr);
-      (DW_AT_high_pc, DW_FORM_addr);
+      (DW_AT_high_pc, DW_FORM_data4);  (* Size, not address *)
       (DW_AT_external, DW_FORM_flag_present);
     ];
   };
@@ -127,7 +127,7 @@ let standard_table : standard_entry list = [
       (DW_AT_name, DW_FORM_strp);
       (DW_AT_type, DW_FORM_ref4);
       (DW_AT_low_pc, DW_FORM_addr);
-      (DW_AT_high_pc, DW_FORM_addr);
+      (DW_AT_high_pc, DW_FORM_data4);  (* Size, not address *)
       (DW_AT_external, DW_FORM_flag_present);
     ];
   };

@@ -3112,6 +3112,263 @@ asmcomp/deadcode.cmx : \
     asmcomp/deadcode.cmi
 asmcomp/deadcode.cmi : \
     asmcomp/mach.cmi
+asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmo : \
+    utils/clflags.cmi \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmi
+asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmx : \
+    utils/clflags.cmx \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmi
+asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmi : \
+    utils/clflags.cmi
+asmcomp/debug/dwarf/dwarf_high/assign_abbrevs.cmo : \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi \
+    asmcomp/debug/dwarf/dwarf_high/assign_abbrevs.cmi
+asmcomp/debug/dwarf/dwarf_high/assign_abbrevs.cmx : \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmx \
+    asmcomp/debug/dwarf/dwarf_high/assign_abbrevs.cmi
+asmcomp/debug/dwarf/dwarf_high/assign_abbrevs.cmi : \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi
+asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmo : \
+    asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_table.cmi \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_table.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.cmi \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmi \
+    asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmi
+asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmx : \
+    asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_table.cmx \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_table.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.cmx \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmx \
+    asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmi
+asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_table.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmi \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_table.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_high/operator_builder.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmi \
+    asmcomp/debug/dwarf/dwarf_high/operator_builder.cmi
+asmcomp/debug/dwarf/dwarf_high/operator_builder.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmx \
+    asmcomp/debug/dwarf/dwarf_high/operator_builder.cmi
+asmcomp/debug/dwarf/dwarf_high/operator_builder.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmi
+asmcomp/debug/dwarf/dwarf_high/proto_die.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi
+asmcomp/debug/dwarf/dwarf_high/proto_die.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmx \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmx \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi
+asmcomp/debug/dwarf/dwarf_high/proto_die.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.cmo : \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi \
+    asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.cmi
+asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.cmx : \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmx \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmx \
+    asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.cmi
+asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.cmi : \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi
+asmcomp/debug/dwarf/dwarf_low/address_class.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/address_class.cmi
+asmcomp/debug/dwarf/dwarf_low/address_class.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/address_class.cmi
+asmcomp/debug/dwarf/dwarf_low/address_class.cmi :
+asmcomp/debug/dwarf/dwarf_low/address_range.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
+    asmcomp/debug/dwarf/dwarf_low/address_range.cmi
+asmcomp/debug/dwarf/dwarf_low/address_range.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmx \
+    asmcomp/debug/dwarf/dwarf_low/address_range.cmi
+asmcomp/debug/dwarf/dwarf_low/address_range.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_low/code_address.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_low/code_address.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_low/code_address.cmi :
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_opcode.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_opcode.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_opcode.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmx \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_opcode.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_opcode.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_opcode.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_opcode.cmx \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_table.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_table.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_table.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_table.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_table.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/location_list_entry.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/address_range.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/address_range.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
+    asmcomp/debug/dwarf/dwarf_low/address_range.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_table.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_table.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_table.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_table.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_table.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/range_list_entry.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmx \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_attributes.cmi :
+asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_encoding.cmi :
+asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_form.cmi :
+asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmi :
+asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_operator.cmi :
+asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi :
+asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmi
+asmcomp/debug/dwarf/dwarf_low/dwarf_value.cmi :
+asmcomp/debug/dwarf/dwarf_low/leb128.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmi
+asmcomp/debug/dwarf/dwarf_low/leb128.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/leb128.cmi
+asmcomp/debug/dwarf/dwarf_low/leb128.cmi :
+asmcomp/debug/dwarf/dwarf_ocaml/dwarf.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmi \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmi \
+    utils/misc.cmi \
+    asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmi \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmi \
+    utils/clflags.cmi \
+    asmcomp/debug/dwarf/dwarf_ocaml/dwarf.cmi
+asmcomp/debug/dwarf/dwarf_ocaml/dwarf.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmx \
+    asmcomp/debug/dwarf/dwarf_high/proto_die.cmx \
+    utils/misc.cmx \
+    asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_tag.cmx \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_language.cmx \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmx \
+    utils/clflags.cmx \
+    asmcomp/debug/dwarf/dwarf_ocaml/dwarf.cmi
+asmcomp/debug/dwarf/dwarf_ocaml/dwarf.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmi \
+    asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
 asmcomp/emit.cmi : \
     asmcomp/linear.cmi \
     asmcomp/cmm.cmi
@@ -3119,6 +3376,9 @@ asmcomp/emitaux.cmo : \
     parsing/location.cmi \
     utils/format_doc.cmi \
     asmcomp/emitenv.cmi \
+    asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmi \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmi \
+    asmcomp/debug/dwarf/dwarf_ocaml/dwarf.cmi \
     lambda/debuginfo.cmi \
     utils/config.cmi \
     middle_end/compilenv.cmi \
@@ -3130,6 +3390,9 @@ asmcomp/emitaux.cmx : \
     parsing/location.cmx \
     utils/format_doc.cmx \
     asmcomp/emitenv.cmi \
+    asmcomp/debug/dwarf/dwarf_high/dwarf_world.cmx \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmx \
+    asmcomp/debug/dwarf/dwarf_ocaml/dwarf.cmx \
     lambda/debuginfo.cmx \
     utils/config.cmx \
     middle_end/compilenv.cmx \
@@ -3138,10 +3401,12 @@ asmcomp/emitaux.cmx : \
     asmcomp/arch.cmx \
     asmcomp/emitaux.cmi
 asmcomp/emitaux.cmi : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmi \
     asmcomp/linear.cmi \
     utils/format_doc.cmi \
     asmcomp/emitenv.cmi \
-    lambda/debuginfo.cmi
+    lambda/debuginfo.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi
 asmcomp/emitenv.cmi : \
     asmcomp/linear.cmi
 asmcomp/interf.cmo : \
@@ -3610,6 +3875,7 @@ asmcomp/emit.cmo : \
     asmcomp/x86_gas.cmi \
     asmcomp/x86_dsl.cmi \
     asmcomp/x86_ast.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmi \
     asmcomp/reg.cmi \
     asmcomp/proc.cmi \
     utils/numbers.cmi \
@@ -3619,9 +3885,11 @@ asmcomp/emit.cmo : \
     lambda/lambda.cmi \
     asmcomp/emitenv.cmi \
     asmcomp/emitaux.cmi \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmi \
     utils/domainstate.cmi \
     utils/config.cmi \
     middle_end/compilenv.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
     asmcomp/cmm.cmi \
     utils/clflags.cmi \
     asmcomp/branch_relaxation.cmi \
@@ -3633,6 +3901,7 @@ asmcomp/emit.cmx : \
     asmcomp/x86_gas.cmx \
     asmcomp/x86_dsl.cmx \
     asmcomp/x86_ast.cmi \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmx \
     asmcomp/reg.cmx \
     asmcomp/proc.cmx \
     utils/numbers.cmx \
@@ -3642,9 +3911,11 @@ asmcomp/emit.cmx : \
     lambda/lambda.cmx \
     asmcomp/emitenv.cmi \
     asmcomp/emitaux.cmx \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmx \
     utils/domainstate.cmx \
     utils/config.cmx \
     middle_end/compilenv.cmx \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmx \
     asmcomp/cmm.cmx \
     utils/clflags.cmx \
     asmcomp/branch_relaxation.cmx \
@@ -3743,6 +4014,7 @@ asmcomp/arch.cmx : \
 asmcomp/arch.cmi : \
     lambda/debuginfo.cmi
 asmcomp/emit.cmo : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmi \
     asmcomp/reg.cmi \
     asmcomp/proc.cmi \
     utils/misc.cmi \
@@ -3751,15 +4023,19 @@ asmcomp/emit.cmo : \
     lambda/lambda.cmi \
     asmcomp/emitenv.cmi \
     asmcomp/emitaux.cmi \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmi \
     utils/domainstate.cmi \
+    lambda/debuginfo.cmi \
     utils/config.cmi \
     middle_end/compilenv.cmi \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmi \
     asmcomp/cmm.cmi \
     utils/clflags.cmi \
     asmcomp/branch_relaxation.cmi \
     asmcomp/arch.cmi \
     asmcomp/emit.cmi
 asmcomp/emit.cmx : \
+    asmcomp/debug/dwarf/dwarf_low/dwarf_4/variable_location.cmx \
     asmcomp/reg.cmx \
     asmcomp/proc.cmx \
     utils/misc.cmx \
@@ -3768,9 +4044,12 @@ asmcomp/emit.cmx : \
     lambda/lambda.cmx \
     asmcomp/emitenv.cmi \
     asmcomp/emitaux.cmx \
+    asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.cmx \
     utils/domainstate.cmx \
+    lambda/debuginfo.cmx \
     utils/config.cmx \
     middle_end/compilenv.cmx \
+    asmcomp/debug/dwarf/dwarf_low/code_address.cmx \
     asmcomp/cmm.cmx \
     utils/clflags.cmx \
     asmcomp/branch_relaxation.cmx \

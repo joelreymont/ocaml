@@ -375,6 +375,15 @@ let write_attribute_value buf (value : Dwarf_value.t) (form : Dwarf_form.t) str_
       for i = 0 to 3 do
         Buffer.add_char buf (Char.chr ((n lsr (i * 8)) land 0xff))
       done
+  | DW_FORM_data4, Label_difference (end_lbl, start_lbl) ->
+      (* 4-byte label difference (size) that needs relocation *)
+      let offset = Buffer.length buf in
+      (* Store both labels for the assembler to compute the difference *)
+      relocs := { offset; label = end_lbl ^ " - " ^ start_lbl } :: !relocs;
+      (* Write placeholder zeros - will be computed by assembler *)
+      for _i = 0 to 3 do
+        Buffer.add_char buf '\000'
+      done
   | DW_FORM_data8, Constant (Int64 n) ->
       let bytes = Bytes.create 8 in
       Bytes.set_int64_le bytes 0 n;

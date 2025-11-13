@@ -216,6 +216,7 @@ META
 /otherlibs/dynlink/dynlink_cmo_format.mli
 /otherlibs/dynlink/dynlink_cmxs_format.mli
 /otherlibs/dynlink/dynlink_platform_intf.mli
+/otherlibs/dynlink/dynlink.ml
 /otherlibs/dynlink/byte/dynlink.mli
 /otherlibs/dynlink/native/dynlink.mli
 /otherlibs/unix/unix.ml
