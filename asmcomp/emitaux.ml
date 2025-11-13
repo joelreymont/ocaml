@@ -645,7 +645,12 @@ module Dwarf_helpers = struct
                   .debug_info still points to offsets relative to its own .debug_str
                   section start, not the merged section. A proper fix would require
                   section-relative relocations, but those cause linker crashes on
-                  macOS (Mach-O) and may not be well-supported. *)
+                  macOS (Mach-O) - tested with both ld_prime and ld_classic.
+
+                  Alternative solutions:
+                  1. Use DW_FORM_string (inline strings) - simple, works everywhere
+                  2. Upgrade to DWARF 5 with DW_FORM_strx - reduces relocations
+                  3. Adopt Apple's debug map approach - macOS-specific *)
                let str_offset = r.Dwarf_world.str_offset in
                Printf.fprintf oc "\t.long %d\n" str_offset;
                emit_from (reloc_offset + 4) rest)
