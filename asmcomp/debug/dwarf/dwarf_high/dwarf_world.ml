@@ -419,11 +419,11 @@ let emit_debug_info_with_str_indices t str_indices str_offsets =
   let die_length = String.length die_bytes in
 
   (* Calculate unit length:
-     version (2) + abbrev_offset (4) + address_size (1) + DIEs *)
-  let unit_length = 2 + 4 + 1 + die_length in
+     DWARF 5: version (2) + unit_type (1) + address_size (1) + abbrev_offset (4) + DIEs *)
+  let unit_length = 2 + 1 + 1 + 4 + die_length in
 
   (* CU header offset - relocations in DIEs need to be offset by this *)
-  let cu_header_size = 4 + 2 + 4 + 1 in  (* length + version + abbrev_offset + address_size *)
+  let cu_header_size = 4 + 2 + 1 + 1 + 4 in  (* length + version + unit_type + address_size + abbrev_offset *)
 
   (* Write compilation unit header *)
   (* Unit length (4 bytes, not including the length field itself) *)
@@ -432,10 +432,12 @@ let emit_debug_info_with_str_indices t str_indices str_offsets =
   done;
   (* DWARF version (2 bytes) *)
   Buffer.add_string buf "\x05\x00"; (* Version 5 *)
-  (* Abbreviation table offset (4 bytes) - always 0 for first CU *)
-  Buffer.add_string buf "\x00\x00\x00\x00";
+  (* Unit type (1 byte) - DW_UT_compile = 0x01 *)
+  Buffer.add_char buf '\x01';
   (* Address size (1 byte) *)
   Buffer.add_char buf '\x08'; (* 64-bit *)
+  (* Abbreviation table offset (4 bytes) - always 0 for first CU *)
+  Buffer.add_string buf "\x00\x00\x00\x00";
 
   (* Append the DIE data *)
   Buffer.add_string buf die_bytes;
