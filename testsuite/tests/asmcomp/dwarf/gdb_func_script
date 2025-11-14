@@ -4,6 +4,6 @@ directory .
 break camlSimple.calculate_274
 run
 info source
-list
+list simple.ml:1
 backtrace
 quit

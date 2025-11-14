@@ -19,6 +19,7 @@
 
     # Replace debug process forked by gdb
     gsub("[Inferior 1 (process [0-9]+) exited normally]", "[Inferior 1 (process XXXX) exited normally]")
+    gsub("Inferior 1 \\[process [0-9]+\\]", "Inferior 1 [process XXXX]")
 
     # Replace architecture identifiers
     gsub("(x86_64)", "$ARCH")
