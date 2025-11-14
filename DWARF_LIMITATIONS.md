@@ -49,32 +49,16 @@ On Mach-O, this creates an address relocation rather than a section-offset reloc
 
 ### Current Status
 
-This limitation is **NOT FIXED** in the current implementation. The compiler will emit a warning when linking multiple object files on macOS with debug info enabled:
+**FIXED** for ELF and Mach-O platforms as of commit XXX.
 
-```bash
-ocamlopt -g -o program file1.ml file2.ml file3.ml
-# Warning: macOS DWARF multi-object linking limitation detected.
-# Line number information may be incorrect in debuggers.
-# See DWARF_LIMITATIONS.md for details.
-```
+**ELF (Linux/GNU)**: The linker properly converts relocations in debug sections to section-relative offsets when merging .debug_line sections.
 
-### Workarounds
+**Mach-O (macOS)**: Fixed using weak symbol subtractor relocations. The compiler emits:
+- `.weak_definition __debug_line_section_base` at the start of each .o file's .debug_line section
+- DW_AT_stmt_list uses: `.long label - __debug_line_section_base`
+- The linker keeps only one weak symbol definition and resolves all subtractor relocations correctly
 
-1. **Single-file compilations** (RECOMMENDED): Compile all modules together in one command:
-   ```bash
-   ocamlopt -g -o program file1.ml file2.ml file3.ml
-   ```
-   Note: Even this may produce multiple .o files internally if the modules are large.
-
-2. **Accept the limitation**: Debug info will work for function names, variables, and types, but line number information may show incorrect source files or lines.
-
-3. **Use ELF targets**: Use Linux or other ELF-based targets where section-relative relocations work correctly.
-
-4. **Manual dsymutil** (DOES NOT FULLY FIX): Running `dsymutil` after linking may help in some cases but does not solve the fundamental issue:
-   ```bash
-   ocamlopt -g -o program file1.ml file2.ml
-   dsymutil program  # May improve debug info but won't fix stmt_list offsets
-   ```
+**Other platforms** (Windows/mingw, etc.): May still have issues due to assembly-time offset computation. A warning is emitted when linking multiple objects on these platforms.
 
 ### Proper Fix (Future Work)
 
