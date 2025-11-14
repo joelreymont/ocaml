@@ -649,13 +649,21 @@ module Dwarf_helpers = struct
                emit_from (reloc_offset + address_size) rest
            | Sec_offset_reloc r ->
                (* Emit 4-byte section-relative offset for DW_AT_stmt_list.
-                  Each CU's line table has a unique label (e.g., Ldebug_line_cu_1).
-                  We emit the offset from the section start (Ldebug_line_start) to
-                  this CU's label, so each CU points to its own line table contribution
-                  even after linking multiple object files together. *)
+                  For multi-object linking to work, we need the linker to adjust
+                  these offsets when concatenating .debug_line sections. *)
                let label = r.Dwarf_world.label in
-               (* Emit offset: label - section_start *)
-               Printf.fprintf oc "\t.long %s - Ldebug_line_start\n" label;
+               if Config.system = "linux" || Config.system = "gnu" then begin
+                 (* ELF: Emit label without section_start subtraction.
+                    The assembler creates a relocation entry that the linker will
+                    convert to a section offset in the final binary. *)
+                 Printf.fprintf oc "\t.long %s\n" label
+               end else begin
+                 (* Mach-O/other: Emit section-relative offset computed at assembly time.
+                    LIMITATION: This breaks multi-object linking because the linker
+                    doesn't adjust these constants when concatenating .debug_line sections.
+                    Proper fix requires platform-specific section-relative relocations. *)
+                 Printf.fprintf oc "\t.long %s - Ldebug_line_start\n" label
+               end;
                emit_from (reloc_offset + 4) rest
            | Str_reloc r ->
                (* Emit string table offset as plain numeric value.

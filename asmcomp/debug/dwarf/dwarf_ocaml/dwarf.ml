@@ -56,6 +56,32 @@ let finalize_current_function t =
       Dwarf_world.add_die t.world func_die;
       t.current_function <- None
 
+(** Create a DWARF expression for the frame base (frame pointer register).
+    Returns a bytes buffer containing the appropriate DW_OP_reg* opcode. *)
+let create_frame_base_expression () =
+  (* Frame pointer DWARF register numbers:
+     - AMD64: rbp = DWARF register 6
+     - ARM64: x29 = DWARF register 29
+     For other architectures, we use a reasonable default. *)
+  let frame_pointer_dwarf_reg =
+    match Config.architecture with
+    | "amd64" -> 6    (* rbp *)
+    | "arm64" -> 29   (* x29 *)
+    | "i386" -> 5     (* ebp *)
+    | _ -> 6          (* default to 6 *)
+  in
+  let buf = Buffer.create 1 in
+  if frame_pointer_dwarf_reg >= 0 && frame_pointer_dwarf_reg <= 31 then
+    (* DW_OP_reg0 through DW_OP_reg31: opcode is 0x50 + register number *)
+    Buffer.add_char buf (Char.chr (0x50 + frame_pointer_dwarf_reg))
+  else begin
+    (* DW_OP_regx for registers > 31: opcode 0x90 followed by ULEB128 reg number *)
+    Buffer.add_char buf '\x90';
+    let reg_bytes = Leb128.encode_uleb128 frame_pointer_dwarf_reg in
+    Buffer.add_bytes buf reg_bytes
+  end;
+  Buffer.to_bytes buf
+
 let add_function t ~name ~start_address ~end_address =
   (* Finalize any previous function first *)
   finalize_current_function t;
@@ -67,6 +93,9 @@ let add_function t ~name ~start_address ~end_address =
   let func_die = Proto_die.with_external func_die true in
   (* Link function to source file in line table (file index 1) *)
   let func_die = Proto_die.with_decl_file func_die 1 in
+  (* Add frame base so DW_OP_fbreg in stack parameter locations works correctly *)
+  let frame_base_expr = create_frame_base_expression () in
+  let func_die = Proto_die.with_frame_base func_die frame_base_expr in
 
   (* Store as current function (don't add to world yet - we'll add variables first) *)
   t.current_function <- Some func_die
