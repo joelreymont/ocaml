@@ -47,18 +47,34 @@ On Mach-O, this creates an address relocation rather than a section-offset reloc
 - Line number information may be wrong for modules other than the first
 - Breakpoints may not work correctly
 
+### Current Status
+
+This limitation is **NOT FIXED** in the current implementation. The compiler will emit a warning when linking multiple object files on macOS with debug info enabled:
+
+```bash
+ocamlopt -g -o program file1.ml file2.ml file3.ml
+# Warning: macOS DWARF multi-object linking limitation detected.
+# Line number information may be incorrect in debuggers.
+# See DWARF_LIMITATIONS.md for details.
+```
+
 ### Workarounds
 
-1. **Use dsymutil** (recommended for macOS):
+1. **Single-file compilations** (RECOMMENDED): Compile all modules together in one command:
+   ```bash
+   ocamlopt -g -o program file1.ml file2.ml file3.ml
+   ```
+   Note: Even this may produce multiple .o files internally if the modules are large.
+
+2. **Accept the limitation**: Debug info will work for function names, variables, and types, but line number information may show incorrect source files or lines.
+
+3. **Use ELF targets**: Use Linux or other ELF-based targets where section-relative relocations work correctly.
+
+4. **Manual dsymutil** (DOES NOT FULLY FIX): Running `dsymutil` after linking may help in some cases but does not solve the fundamental issue:
    ```bash
    ocamlopt -g -o program file1.ml file2.ml
-   dsymutil program
+   dsymutil program  # May improve debug info but won't fix stmt_list offsets
    ```
-   The dsymutil tool post-processes the binary and creates a correct .dSYM bundle with fixed offsets.
-
-2. **Single-file compilations**: Compile all modules together in one command to avoid multi-object linking.
-
-3. **ELF targets**: Use Linux or other ELF-based targets where relocations work correctly.
 
 ### Proper Fix (Future Work)
 
