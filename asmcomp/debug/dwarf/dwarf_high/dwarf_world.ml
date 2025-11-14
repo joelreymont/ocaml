@@ -168,8 +168,8 @@ let add_standard_types t =
      - DW_AT_name (DW_FORM_string): len(source_file) + 1 (null terminator)
      - DW_AT_producer (DW_FORM_string): len(producer) + 1
      - DW_AT_comp_dir (DW_FORM_string): len(comp_dir) + 1
-     - DW_AT_language (DW_FORM_data1): 1 byte
-     - DW_AT_stmt_list (DW_FORM_sec_offset): 4 bytes
+     - DW_AT_language (DW_FORM_data2): 2 bytes
+     - DW_AT_stmt_list (DW_FORM_sec_offset): 4 bytes (only if line data exists)
 
      Base type DIE with DW_FORM_string (variable size):
      - Abbrev code (ULEB128, typically 1 byte): 1 byte
@@ -180,13 +180,15 @@ let add_standard_types t =
   let cu_header_size = 12 in
 
   (* Calculate actual CU DIE size based on string lengths *)
+  let files = Line_number_table.files t.line_number_table in
+  let has_line_data = List.length files > 0 in
   let cu_die_size =
     1 +  (* abbrev code *)
     (String.length t.source_file + 1) +  (* DW_AT_name *)
     (String.length t.producer + 1) +     (* DW_AT_producer *)
     (String.length t.comp_dir + 1) +     (* DW_AT_comp_dir *)
-    1 +  (* DW_AT_language *)
-    4    (* DW_AT_stmt_list (DW_FORM_sec_offset) *)
+    2 +  (* DW_AT_language (DW_FORM_data2) *)
+    (if has_line_data then 4 else 0)    (* DW_AT_stmt_list (conditional) *)
   in
 
   (* First type DIE (value) starts after CU header and CU DIE *)
