@@ -1,0 +1,9 @@
+set disable-randomization off
+set debuginfod enabled off
+directory .
+break camlSimple.calculate_274
+run
+info source
+list
+backtrace
+quit
