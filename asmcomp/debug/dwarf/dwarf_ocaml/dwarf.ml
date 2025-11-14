@@ -57,19 +57,11 @@ let finalize_current_function t =
       t.current_function <- None
 
 (** Create a DWARF expression for the frame base (frame pointer register).
-    Returns a bytes buffer containing the appropriate DW_OP_reg* opcode. *)
+    Returns a bytes buffer containing the appropriate DW_OP_reg* opcode.
+    Uses the architecture-specific frame pointer DWARF register number
+    set by the backend initialization code. *)
 let create_frame_base_expression () =
-  (* Frame pointer DWARF register numbers:
-     - AMD64: rbp = DWARF register 6
-     - ARM64: x29 = DWARF register 29
-     For other architectures, we use a reasonable default. *)
-  let frame_pointer_dwarf_reg =
-    match Config.architecture with
-    | "amd64" -> 6    (* rbp *)
-    | "arm64" -> 29   (* x29 *)
-    | "i386" -> 5     (* ebp *)
-    | _ -> 6          (* default to 6 *)
-  in
+  let frame_pointer_dwarf_reg = Arch_reg_mapping.get_frame_pointer_register () in
   let buf = Buffer.create 1 in
   if frame_pointer_dwarf_reg >= 0 && frame_pointer_dwarf_reg <= 31 then
     (* DW_OP_reg0 through DW_OP_reg31: opcode is 0x50 + register number *)

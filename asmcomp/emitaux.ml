@@ -540,6 +540,7 @@ module Dwarf_helpers = struct
     if Dwarf_flags.is_dwarf_enabled () then begin
       (* Initialize architecture-specific DWARF register number mapping *)
       Arch_reg_mapping.set_mapper Dwarf_reg_map.to_dwarf_register;
+      Arch_reg_mapping.set_frame_pointer_register Dwarf_reg_map.frame_pointer_dwarf_register;
       let state = Dwarf.create ~source_file ~compilation_dir ~producer ~address_size:Arch.size_addr () in
       dwarf_state := Some state
     end
