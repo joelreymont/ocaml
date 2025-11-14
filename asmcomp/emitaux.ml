@@ -538,7 +538,7 @@ module Dwarf_helpers = struct
 
   let init ~source_file ~compilation_dir ~producer =
     if Dwarf_flags.is_dwarf_enabled () then begin
-      let state = Dwarf.create ~source_file ~compilation_dir ~producer () in
+      let state = Dwarf.create ~source_file ~compilation_dir ~producer ~address_size:Arch.size_addr () in
       dwarf_state := Some state
     end
 
