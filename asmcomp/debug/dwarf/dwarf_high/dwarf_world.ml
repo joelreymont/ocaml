@@ -85,7 +85,7 @@ let create_cu_die t =
   let cu = Proto_die.add_attribute cu {
     attr = DW_AT_language;
     value = Constant (Int (Dwarf_language.to_code t.language));
-    form = DW_FORM_data1;
+    form = DW_FORM_data2;  (* 2 bytes to hold vendor extensions like 0x8001 *)
   } in
   (* Only add DW_AT_stmt_list if we have line number data *)
   let files = Line_number_table.files t.line_number_table in
@@ -305,7 +305,11 @@ let write_attribute_value buf address_size (value : Dwarf_value.t) (form : Dwarf
   | DW_FORM_addr, Address addr ->
       (* Address size from target architecture (4 for 32-bit, 8 for 64-bit) *)
       let bytes = Bytes.create address_size in
-      Bytes.set_int64_le bytes 0 addr;
+      begin match address_size with
+      | 4 -> Bytes.set_int32_le bytes 0 (Int64.to_int32 addr)
+      | 8 -> Bytes.set_int64_le bytes 0 addr
+      | _ -> failwith (Printf.sprintf "Unsupported address size: %d" address_size)
+      end;
       Buffer.add_bytes buf bytes
   | DW_FORM_addr, Label_address label ->
       (* Address that needs relocation - size from target architecture *)
