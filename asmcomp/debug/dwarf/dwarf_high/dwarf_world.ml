@@ -83,11 +83,15 @@ let create_cu_die t =
     value = Constant (Int (Dwarf_language.to_code t.language));
     form = DW_FORM_data1;
   } in
-  let cu = Proto_die.add_attribute cu {
-    attr = DW_AT_stmt_list;
-    value = Label_sec_offset t.line_table_label;  (* Reference to line table label *)
-    form = DW_FORM_sec_offset;
-  } in
+  (* Only add DW_AT_stmt_list if we have line number data *)
+  let files = Line_number_table.files t.line_number_table in
+  let cu = if List.length files > 0 then
+    Proto_die.add_attribute cu {
+      attr = DW_AT_stmt_list;
+      value = Label_sec_offset t.line_table_label;  (* Reference to line table label *)
+      form = DW_FORM_sec_offset;
+    }
+  else cu in
   Proto_die.set_has_children cu true
 
 let add_die t die =
