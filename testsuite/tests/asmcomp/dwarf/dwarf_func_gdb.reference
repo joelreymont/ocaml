@@ -11,7 +11,7 @@ No current source file.
 8	  let result = calculate 10 20 in
 9	  Printf.printf "result=%d\n" result
 #0  0x00000000000000 in camlSimple.calculate_274 (R=0x00000000000000, R=0x00000000000000)
-#1  0x00000000000000 in camlSimple.entry ()
+#1  0x00000000000000 in camlSimple.entry () at simple.ml:8
 #2  0x00000000000000 in caml_program ()
 #3  <signal handler called>
 #4  0x00000000000000 in caml_startup_common (pooling=<optimized out>, argv=0x00000000000000) at runtime/startup_nat.c:XX
