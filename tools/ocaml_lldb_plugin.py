@@ -273,9 +273,10 @@ class _OCamlValueDesc:
 
 
 class _DWARFModuleParser:
-    def __init__(self, module: lldb.SBModule):
+    def __init__(self, module: lldb.SBModule, address_offset: int = 0):
         self.module = module
         self.functions: List[_DWARFFunction] = []
+        self.address_offset = address_offset  # Offset to apply to DWARF addresses (for .o files)
         self._abbrev_tables: Dict[int, Dict[int, _AbbrevEntry]] = {}
         self._debug_info = _read_section_bytes(module, ["__debug_info", ".debug_info"]) or b""
         self._debug_abbrev = _read_section_bytes(module, ["__debug_abbrev", ".debug_abbrev"]) or b""
@@ -933,6 +934,59 @@ def _get_dwarf_module(frame: lldb.SBFrame) -> Optional[_DWARFModuleParser]:
         if _DWARF_CACHE[key] and len(_DWARF_CACHE[key].functions) > 0:
             return _DWARF_CACHE[key]
 
+    # On macOS, try loading object files from the current directory
+    # This works around dsymutil issues where DWARF isn't in the .dSYM
+    import platform
+    if platform.system() == "Darwin":
+        import os
+        import glob
+        # Get the main module and current PC to find the right .o file
+        main_module = target.GetModuleAtIndex(0)
+        pc = frame.GetPCAddress().GetLoadAddress(target)
+
+        for obj_file in glob.glob("*.o"):
+            if obj_file in _DWARF_CACHE:
+                cached = _DWARF_CACHE[obj_file]
+                if cached and len(cached.functions) > 0:
+                    # Check if this cached parser contains our function
+                    for fn in cached.functions:
+                        adjusted_low = fn.low_pc + cached.address_offset
+                        adjusted_high = fn.high_pc + cached.address_offset
+                        if adjusted_low <= pc < adjusted_high:
+                            return cached
+                continue
+
+            try:
+                # Create a temporary module for the object file
+                obj_module = target.AddModule(obj_file, "", "")
+                if obj_module and obj_module.IsValid():
+                    # Calculate address offset by comparing a symbol's address in .o vs binary
+                    # Find a function symbol that exists in both
+                    offset = 0
+                    for i in range(obj_module.GetNumSymbols()):
+                        sym = obj_module.GetSymbolAtIndex(i)
+                        if sym.GetType() == lldb.eSymbolTypeCode:
+                            obj_addr = sym.GetStartAddress().GetFileAddress()
+                            # Find same symbol in main module
+                            main_sym = main_module.FindSymbol(sym.GetName())
+                            if main_sym and main_sym.IsValid():
+                                main_addr = main_sym.GetStartAddress().GetLoadAddress(target)
+                                if obj_addr > 0:  # Ensure valid address
+                                    offset = main_addr - obj_addr
+                                    break
+
+                    parser = _DWARFModuleParser(obj_module, offset)
+                    _DWARF_CACHE[obj_file] = parser
+                    if parser and len(parser.functions) > 0:
+                        # Check if this parser contains our function
+                        for fn in parser.functions:
+                            adjusted_low = fn.low_pc + offset
+                            adjusted_high = fn.high_pc + offset
+                            if adjusted_low <= pc < adjusted_high:
+                                return parser
+            except Exception:
+                pass
+
     return None
 
 
@@ -1222,7 +1276,10 @@ def _find_function(frame: lldb.SBFrame, parser: _DWARFModuleParser) -> Optional[
     target = frame.GetThread().GetProcess().GetTarget()
     address = frame.GetPCAddress().GetLoadAddress(target)
     for fn in parser.functions:
-        if fn.contains(address):
+        # Apply address offset for object files
+        adjusted_low = fn.low_pc + parser.address_offset
+        adjusted_high = fn.high_pc + parser.address_offset
+        if adjusted_low <= address < adjusted_high:
             return fn
     return None
 
@@ -1343,11 +1400,17 @@ def ocaml_vars(debugger, command, exe_ctx, result, _dict):
         _print("DWARF data not available for this module")
         return
 
+    target = process.GetTarget()
     func = _find_function(frame, parser)
     if not func:
-        _print("No OCaml DWARF function found for this frame")
+        # Debug: show what we're looking for
+        pc = frame.GetPCAddress().GetLoadAddress(target)
+        _print(f"No OCaml DWARF function found for this frame (PC=0x{pc:x})")
+        if parser.functions:
+            _print(f"Available functions ({len(parser.functions)}):")
+            for f in parser.functions[:5]:
+                _print(f"  {f.name}: 0x{f.low_pc:x}-0x{f.high_pc:x}")
         return
-    target = process.GetTarget()
     arch = _Architecture(target.GetTriple())
     pc = frame.GetPCAddress().GetLoadAddress(target)
     seen = 0
