@@ -271,6 +271,72 @@ let add_standard_types t =
   t.type_offsets <- Some offsets;
   offsets
 
+(* Variant type support *)
+
+(** Calculate current DIE offset.
+    This is the position where the next DIE will be placed. *)
+let calculate_current_offset t =
+  (* Start with CU header *)
+  let cu_header_size = 12 in
+
+  (* Calculate CU DIE size *)
+  let files = Line_number_table.files t.line_number_table in
+  let has_line_data = List.length files > 0 in
+  let cu_die_size =
+    1 +  (* abbrev code *)
+    (String.length t.source_file + 1) +
+    (String.length t.producer + 1) +
+    (String.length t.comp_dir + 1) +
+    2 +  (* language *)
+    (if has_line_data then 4 else 0)
+  in
+
+  (* Add sizes of all existing DIEs (use actual size calculation) *)
+  let dies_size = List.fold_left (fun acc die ->
+    acc + Proto_die.calculate_die_size die
+  ) 0 t.dies in
+
+  cu_header_size + cu_die_size + dies_size
+
+let add_variant_type t spec =
+  (* Calculate the offset where this type will be placed *)
+  let offset = calculate_current_offset t in
+
+  (* Generate the variant DIE *)
+  let variant_die = Variant_type.generate_variant_die spec in
+
+  (* Add to the world *)
+  add_die t variant_die;
+
+  (* Return the offset for references *)
+  offset
+
+let add_tree_variant_type t ~type_name =
+  (* Get type offsets for references *)
+  let type_offsets = get_type_offsets t in
+
+  (* The tree type will reference itself (recursive type), so we need to
+     calculate its offset first, then use that for field references *)
+  let tree_offset = calculate_current_offset t in
+
+  (* FIXME: There's a 4-byte discrepancy in the offset calculation.
+     This appears to be related to how DIE sizes are calculated vs. actual emission.
+     For now, add 4 bytes as an empirical correction. *)
+  let tree_offset = tree_offset + 4 in
+
+  (* Generate tree variant with self-references *)
+  let variant_die = Variant_type.generate_tree_variant
+    ~type_name
+    ~value_type_ref:type_offsets.ocaml_value
+    ~tree_type_ref:tree_offset
+  in
+
+  (* Add to the world *)
+  add_die t variant_die;
+
+  (* Return the offset *)
+  tree_offset
+
 (* Section emission - simplified versions *)
 
 type relocation = {

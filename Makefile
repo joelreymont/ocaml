@@ -295,6 +295,7 @@ asmcomp_SOURCES = \
   asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.mli asmcomp/debug/dwarf/dwarf_low/dwarf_4/line_number_table.ml \
   asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.mli asmcomp/debug/dwarf/dwarf_flags/dwarf_flags.ml \
   asmcomp/debug/dwarf/dwarf_high/proto_die.mli asmcomp/debug/dwarf/dwarf_high/proto_die.ml \
+  asmcomp/debug/dwarf/dwarf_high/variant_type.mli asmcomp/debug/dwarf/dwarf_high/variant_type.ml \
   asmcomp/debug/dwarf/dwarf_high/operator_builder.mli asmcomp/debug/dwarf/dwarf_high/operator_builder.ml \
   asmcomp/debug/dwarf/dwarf_high/assign_abbrevs.mli asmcomp/debug/dwarf/dwarf_high/assign_abbrevs.ml \
   asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.mli asmcomp/debug/dwarf/dwarf_high/standard_abbrevs.ml \

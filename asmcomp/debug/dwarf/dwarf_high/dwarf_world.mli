@@ -82,6 +82,16 @@ val add_standard_types : t -> type_offsets
 (** Get the stored type offsets (must call add_standard_types first) *)
 val get_type_offsets : t -> type_offsets
 
+(** Add a variant type DIE and return its offset.
+    The variant type will be added as a top-level type DIE.
+    Returns the offset where this type DIE will be placed. *)
+val add_variant_type : t -> Variant_type.variant_spec -> int
+
+(** Helper: Add a binary tree variant type.
+    Generates a tree type with Empty and Node constructors.
+    Returns the offset of the tree type DIE. *)
+val add_tree_variant_type : t -> type_name:string -> int
+
 (** Emit all DWARF sections to a buffer *)
 type relocation = {
   offset : int;

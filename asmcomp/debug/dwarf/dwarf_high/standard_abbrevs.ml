@@ -67,6 +67,7 @@ let standard_table : standard_entry list = [
     has_children = false;
     attributes = [
       (DW_AT_name, DW_FORM_string);      (* DWARF 5: inline string *)
+      (DW_AT_linkage_name, DW_FORM_string); (* Full mangled name for linking *)
       (DW_AT_low_pc, DW_FORM_addr);
       (DW_AT_high_pc, DW_FORM_addr);
       (DW_AT_external, DW_FORM_flag_present);
@@ -82,6 +83,7 @@ let standard_table : standard_entry list = [
     has_children = true;
     attributes = [
       (DW_AT_name, DW_FORM_string);      (* DWARF 5: inline string *)
+      (DW_AT_linkage_name, DW_FORM_string); (* Full mangled name for linking *)
       (DW_AT_low_pc, DW_FORM_addr);
       (DW_AT_high_pc, DW_FORM_addr);
       (DW_AT_external, DW_FORM_flag_present);
@@ -240,6 +242,69 @@ let standard_table : standard_entry list = [
     attributes = [
       (DW_AT_name, DW_FORM_string);
       (DW_AT_location, DW_FORM_sec_offset);  (* Location list *)
+    ];
+  };
+
+  (* Code 18: Structure type (for variant types) *)
+  {
+    code = 18;
+    tag = DW_TAG_structure_type;
+    has_children = true;
+    attributes = [
+      (DW_AT_name, DW_FORM_string);
+      (DW_AT_byte_size, DW_FORM_data1);
+    ];
+  };
+
+  (* Code 19: Variant part (discriminated union) *)
+  {
+    code = 19;
+    tag = DW_TAG_variant_part;
+    has_children = true;
+    attributes = [];
+  };
+
+  (* Code 20: Variant (one case in discriminated union) *)
+  {
+    code = 20;
+    tag = DW_TAG_variant;
+    has_children = false;
+    attributes = [
+      (DW_AT_name, DW_FORM_string);
+      (DW_AT_discr_value, DW_FORM_data1);
+    ];
+  };
+
+  (* Code 21: Variant with children (block constructor with fields) *)
+  {
+    code = 21;
+    tag = DW_TAG_variant;
+    has_children = true;
+    attributes = [
+      (DW_AT_name, DW_FORM_string);
+      (DW_AT_discr_value, DW_FORM_data1);
+    ];
+  };
+
+  (* Code 22: Member (struct/variant field) *)
+  {
+    code = 22;
+    tag = DW_TAG_member;
+    has_children = false;
+    attributes = [
+      (DW_AT_name, DW_FORM_string);
+      (DW_AT_type, DW_FORM_ref4);
+      (DW_AT_data_member_location, DW_FORM_data1);
+    ];
+  };
+
+  (* Code 23: Namespace (for OCaml modules) *)
+  {
+    code = 23;
+    tag = DW_TAG_namespace;
+    has_children = true;
+    attributes = [
+      (DW_AT_name, DW_FORM_string);  (* Module name *)
     ];
   };
 ]

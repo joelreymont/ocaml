@@ -67,6 +67,9 @@ val make_attribute :
 (** Helper: Add a name attribute *)
 val with_name : t -> string -> t
 
+(** Helper: Add a linkage_name attribute *)
+val with_linkage_name : t -> string -> t
+
 (** Helper: Add a type attribute (reference to another DIE) *)
 val with_type : t -> int -> t
 
@@ -103,6 +106,12 @@ val with_artificial : t -> bool -> t
 (** Helper: Add a decl_file attribute (file index in line table) *)
 val with_decl_file : t -> int -> t
 
+(** Helper: Add a discriminant value (for variant constructors) *)
+val with_discr_value : t -> int -> t
+
+(** Helper: Add data member location (field offset in struct/variant) *)
+val with_data_member_location : t -> int -> t
+
 (** Helper: Create a variable DIE *)
 val create_variable :
   name:string ->
@@ -126,3 +135,6 @@ val print : Format.formatter -> t -> unit
 
 (** Print with indentation for tree structure *)
 val print_tree : Format.formatter -> t -> unit
+
+(** Calculate the size of a DIE in bytes (including children and null terminators) *)
+val calculate_die_size : t -> int

@@ -63,6 +63,13 @@ let with_name t name =
     form = DW_FORM_string;  (* DWARF 5: inline strings *)
   }
 
+let with_linkage_name t linkage_name =
+  add_attribute t {
+    attr = DW_AT_linkage_name;
+    value = String linkage_name;
+    form = DW_FORM_string;  (* DWARF 5: inline strings *)
+  }
+
 let with_type t type_offset =
   add_attribute t {
     attr = DW_AT_type;
@@ -162,6 +169,20 @@ let with_decl_file t file_index =
     form = DW_FORM_data1;
   }
 
+let with_discr_value t value =
+  add_attribute t {
+    attr = DW_AT_discr_value;
+    value = Constant (Int value);
+    form = DW_FORM_data1;
+  }
+
+let with_data_member_location t offset =
+  add_attribute t {
+    attr = DW_AT_data_member_location;
+    value = Constant (Int offset);
+    form = DW_FORM_data1;
+  }
+
 (* High-level constructors *)
 
 let create_variable ~name ?type_ref ?location ?(is_parameter=false) ?(is_artificial=false) () =
@@ -223,3 +244,60 @@ let print_tree ppf t =
   Format.fprintf ppf "@[<v>";
   print_tree_indent ppf t "";
   Format.fprintf ppf "@]"
+
+(* Calculate the size of a DIE in bytes *)
+let rec calculate_die_size t =
+  (* Abbrev code (ULEB128, typically 1 byte for codes < 128) *)
+  let abbrev_size = 1 in
+
+  (* Calculate size of all attributes *)
+  let attr_size = List.fold_left (fun acc attr ->
+    acc + calculate_attribute_size attr
+  ) 0 t.attributes in
+
+  (* Calculate size of all children *)
+  let children_size = List.fold_left (fun acc child ->
+    acc + calculate_die_size child
+  ) 0 t.children in
+
+  (* Null terminator for children (if has_children) *)
+  let null_size = if t.has_children || t.children <> [] then 1 else 0 in
+
+  abbrev_size + attr_size + children_size + null_size
+
+and calculate_attribute_size attr =
+  match attr.form with
+  | Dwarf_form.DW_FORM_string ->
+      (* String value - depends on Dwarf_value.t *)
+      (match attr.value with
+       | Dwarf_value.String s -> String.length s + 1
+       | Dwarf_value.Constant (Int _) -> 1  (* Should not happen for DW_FORM_string *)
+       | Dwarf_value.Constant (Int64 _) -> 8
+       | Dwarf_value.Constant (String s) -> String.length s + 1
+       | Dwarf_value.Reference _ -> 4
+       | Dwarf_value.Address _ -> 8
+       | Dwarf_value.Block bytes -> Bytes.length bytes
+       | Dwarf_value.Label_address _ -> 8
+       | Dwarf_value.Flag _ -> 1
+       | Dwarf_value.Expr_loc bytes -> 1 + Bytes.length bytes
+       | Dwarf_value.Sec_offset _ -> 4
+       | Dwarf_value.Label_sec_offset _ -> 4)
+  | Dwarf_form.DW_FORM_data1 -> 1
+  | Dwarf_form.DW_FORM_data2 -> 2
+  | Dwarf_form.DW_FORM_data4 -> 4
+  | Dwarf_form.DW_FORM_data8 -> 8
+  | Dwarf_form.DW_FORM_addr -> 8  (* Depends on address size, assuming 64-bit *)
+  | Dwarf_form.DW_FORM_ref1 -> 1
+  | Dwarf_form.DW_FORM_ref2 -> 2
+  | Dwarf_form.DW_FORM_ref4 -> 4
+  | Dwarf_form.DW_FORM_ref8 -> 8
+  | Dwarf_form.DW_FORM_sec_offset -> 4
+  | Dwarf_form.DW_FORM_exprloc ->
+      (* Expression location - ULEB128 length + data *)
+      (match attr.value with
+       | Dwarf_value.Block bytes | Dwarf_value.Expr_loc bytes ->
+           1 + Bytes.length bytes  (* 1 for ULEB128 length *)
+       | _ -> 1)
+  | Dwarf_form.DW_FORM_flag -> 1
+  | Dwarf_form.DW_FORM_flag_present -> 0  (* No data *)
+  | _ -> 1  (* Conservative estimate for other forms *)
