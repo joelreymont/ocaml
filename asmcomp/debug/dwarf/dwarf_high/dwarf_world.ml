@@ -337,6 +337,63 @@ let add_tree_variant_type t ~type_name =
   (* Return the offset *)
   tree_offset
 
+let add_list_variant_type t ~type_name =
+  (* Get type offsets for references *)
+  let type_offsets = get_type_offsets t in
+
+  (* The list type will reference itself (recursive type) *)
+  let list_offset = calculate_current_offset t in
+
+  (* Apply same empirical 4-byte correction as tree type *)
+  let list_offset = list_offset + 4 in
+
+  (* Generate list variant with self-references *)
+  let variant_die = Variant_type.generate_list_variant
+    ~type_name
+    ~value_type_ref:type_offsets.ocaml_value
+    ~list_type_ref:list_offset
+  in
+
+  (* Add to the world *)
+  add_die t variant_die;
+
+  (* Return the offset *)
+  list_offset
+
+let add_option_variant_type t ~type_name =
+  (* Get type offsets for references *)
+  let type_offsets = get_type_offsets t in
+
+  (* Calculate offset for this type *)
+  let option_offset = calculate_current_offset t in
+
+  (* Generate option variant *)
+  let variant_die = Variant_type.generate_option_variant
+    ~type_name
+    ~value_type_ref:type_offsets.ocaml_value
+  in
+
+  (* Add to the world *)
+  add_die t variant_die;
+
+  (* Return the offset *)
+  option_offset
+
+let add_bool_variant_type t ~type_name =
+  (* Calculate offset for this type *)
+  let bool_offset = calculate_current_offset t in
+
+  (* Generate bool variant *)
+  let variant_die = Variant_type.generate_bool_variant
+    ~type_name
+  in
+
+  (* Add to the world *)
+  add_die t variant_die;
+
+  (* Return the offset *)
+  bool_offset
+
 (* Section emission - simplified versions *)
 
 type relocation = {

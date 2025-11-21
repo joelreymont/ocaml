@@ -195,3 +195,109 @@ let calculate_variant_die_size spec =
   let null_terminators = 3 in
 
   struct_size + variant_part_size + variants_size + null_terminators
+
+(** Helper: Generate list variant type.
+
+    OCaml type definition:
+      type 'a list = [] | (::) of 'a * 'a list
+
+    Memory layout:
+      []: immediate value 1 (tag 0 as empty list constant)
+      (::): block with tag 0, size 2
+        [header: tag=0, size=2]
+        [field 0: head (type 'a)]
+        [field 1: tail (type 'a list)]
+*)
+let generate_list_variant ~type_name ~value_type_ref ~list_type_ref =
+  (* Empty list constructor: tag 0 as immediate (no fields) *)
+  let empty_ctor = make_constructor
+    ~name:"[]"
+    ~tag:0
+    ~fields:[]
+  in
+
+  (* Cons constructor: tag 0, has 2 fields *)
+  let cons_ctor = make_constructor
+    ~name:"::"
+    ~tag:0
+    ~fields:[
+      make_field ~field_name:"head" ~field_type_ref:value_type_ref ~field_offset:8;
+      make_field ~field_name:"tail" ~field_type_ref:list_type_ref ~field_offset:16;
+    ]
+  in
+
+  let spec = make_variant_spec
+    ~type_name
+    ~constructors:[empty_ctor; cons_ctor]
+    ~has_immediate_ctors:true
+  in
+
+  generate_variant_die spec
+
+(** Helper: Generate option variant type.
+
+    OCaml type definition:
+      type 'a option = None | Some of 'a
+
+    Memory layout:
+      None: immediate value 1 (tag 0 as constant)
+      Some: block with tag 0, size 1
+        [header: tag=0, size=1]
+        [field 0: value (type 'a)]
+*)
+let generate_option_variant ~type_name ~value_type_ref =
+  (* None constructor: tag 0 as immediate *)
+  let none_ctor = make_constructor
+    ~name:"None"
+    ~tag:0
+    ~fields:[]
+  in
+
+  (* Some constructor: tag 0, has 1 field *)
+  let some_ctor = make_constructor
+    ~name:"Some"
+    ~tag:0
+    ~fields:[
+      make_field ~field_name:"value" ~field_type_ref:value_type_ref ~field_offset:8;
+    ]
+  in
+
+  let spec = make_variant_spec
+    ~type_name
+    ~constructors:[none_ctor; some_ctor]
+    ~has_immediate_ctors:true
+  in
+
+  generate_variant_die spec
+
+(** Helper: Generate bool variant type.
+
+    OCaml type definition:
+      type bool = false | true
+
+    Memory layout:
+      false: immediate value 1 (tag 0 as 2*0+1)
+      true: immediate value 3 (tag 1 as 2*1+1)
+*)
+let generate_bool_variant ~type_name =
+  (* false constructor: tag 0 as immediate *)
+  let false_ctor = make_constructor
+    ~name:"false"
+    ~tag:0
+    ~fields:[]
+  in
+
+  (* true constructor: tag 1 as immediate *)
+  let true_ctor = make_constructor
+    ~name:"true"
+    ~tag:1
+    ~fields:[]
+  in
+
+  let spec = make_variant_spec
+    ~type_name
+    ~constructors:[false_ctor; true_ctor]
+    ~has_immediate_ctors:true
+  in
+
+  generate_variant_die spec

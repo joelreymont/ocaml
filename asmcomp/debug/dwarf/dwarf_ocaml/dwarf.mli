@@ -123,6 +123,20 @@ val end_lexical_block :
   t ->
   unit
 
+(** Set the current namespace for subsequent functions.
+
+    Functions added after calling this will be nested inside a DW_TAG_namespace
+    DIE with the given name, allowing LLDB to resolve Module::function breakpoints.
+
+    Parameters:
+    - t: DWARF state
+    - namespace_name: Module name (e.g., "List", "String", "Test_pretty_print")
+*)
+val set_namespace :
+  t ->
+  string ->
+  unit
+
 (** Emit all DWARF sections.
 
     Returns section data that can be written to the object file.

@@ -216,10 +216,22 @@ class _DWARFVariable:
 
 
 @dataclasses.dataclass
+class _VariantConstructor:
+    tag: int
+    name: str
+    field_count: int = 0
+
+    @property
+    def is_constant(self) -> bool:
+        """True if this is a constant constructor (no fields, encoded as immediate)."""
+        return self.field_count == 0
+
+@dataclasses.dataclass
 class _TypeEntry:
     tag: int
     name: Optional[str] = None
     type_ref: Optional[int] = None
+    variants: List[_VariantConstructor] = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
@@ -360,11 +372,25 @@ class _DWARFModuleParser:
         abbrev_table: Dict[int, _AbbrevEntry],
         context: _UnitContext,
         current_function: Optional[_DWARFFunction],
+        parent_type_offset: Optional[int] = None,
     ) -> None:
         while reader.offset < unit_end:
             die_offset = reader.offset
             code = reader.read_uleb128()
             if code == 0:
+                # When exiting a DW_TAG_VARIANT, add it to parent structure
+                if hasattr(self, '_current_variant_tag') and hasattr(self, '_current_struct_offset'):
+                    struct_entry = self._type_entries.get(self._current_struct_offset)
+                    if struct_entry:
+                        struct_entry.variants.append(_VariantConstructor(
+                            tag=self._current_variant_tag,
+                            name=self._current_variant_name,
+                            field_count=self._current_variant_field_count
+                        ))
+                    # Clear variant tracking
+                    delattr(self, '_current_variant_tag')
+                    delattr(self, '_current_variant_name')
+                    self._current_variant_field_count = 0
                 return
             entry = abbrev_table.get(code)
             if not entry:
@@ -419,8 +445,15 @@ class _DWARFModuleParser:
                         current_function.add_variable(var)
                         if type_name is None and isinstance(type_ref, int):
                             self._pending_type_links.append((var, type_ref))
+
+            # Handle variant part - track parent type for variant association
+            next_parent_type = parent_type_offset
+            if entry.tag == DW_TAG_VARIANT_PART:
+                # When entering a variant part, use the current DIE's parent as the type
+                next_parent_type = parent_type_offset if parent_type_offset else die_offset
+
             if entry.has_children:
-                self._parse_children(reader, unit_end, abbrev_table, context, child_function)
+                self._parse_children(reader, unit_end, abbrev_table, context, child_function, next_parent_type)
 
     def _read_attributes(
         self, reader: _ByteReader, entry: _AbbrevEntry, context: _UnitContext
@@ -767,6 +800,23 @@ class _DWARFModuleParser:
                 name=name or None,
                 type_ref=ref_value,
             )
+            # Track current structure for variant association
+            if tag == DW_TAG_STRUCTURE_TYPE:
+                self._current_struct_offset = die_offset
+                self._current_variant_field_count = 0
+        elif tag == DW_TAG_VARIANT:
+            # Record variant constructor
+            discr_value = attrs.get(DW_AT_DISCR_VALUE)
+            name = _coerce_str(attrs.get(DW_AT_NAME))
+            if isinstance(discr_value, int) and name and hasattr(self, '_current_struct_offset'):
+                # Will count fields in children, then add variant in _parse_children
+                self._current_variant_tag = discr_value
+                self._current_variant_name = name
+                self._current_variant_field_count = 0
+        elif tag == DW_TAG_MEMBER:
+            # Count fields in current variant
+            if hasattr(self, '_current_variant_tag'):
+                self._current_variant_field_count += 1
 
     def _resolve_type(self, ref: object) -> Optional[str]:
         if isinstance(ref, int):
@@ -1323,9 +1373,344 @@ def _format_option(value, process):
         return f"Some(0x{inner:x})"
 
 
+def _get_variant_constructors(type_name):
+    """Return variant constructor names for common OCaml types.
+
+    This function provides fallback hardcoded mappings for common types.
+    In the future, this should be replaced by parsing DWARF variant information.
+    """
+    constructors = {
+        "tree": {
+            0: "Leaf",
+            1: "Node"
+        },
+        "list": {
+            0: "[]",
+            1: "::"
+        },
+        "option": {
+            0: "None",
+            1: "Some"
+        },
+        "bool": {
+            0: "false",
+            1: "true"
+        },
+    }
+
+    type_lower = type_name.lower()
+    for key, value in constructors.items():
+        if key in type_lower:
+            return value
+    return None
+
+def _get_variant_constructors_from_dwarf(frame, type_name):
+    """Get variant constructor information from DWARF.
+
+    Returns a tuple of (constant_ctors, block_ctors) where each is a dict {tag: name},
+    or None if not found.
+
+    OCaml uses the same tag values for constant and block constructors, distinguished by:
+    - Constant constructors: encoded as immediates (odd values), no fields
+    - Block constructors: heap blocks (even addresses), have fields
+    """
+    parser = _get_dwarf_module(frame)
+    if not parser:
+        return None
+
+    # Search for a structure type with this name that has variants
+    for offset, type_entry in parser._type_entries.items():
+        if type_entry.tag == DW_TAG_STRUCTURE_TYPE and type_entry.name == type_name:
+            if type_entry.variants:
+                # Separate constant and block constructors
+                constant_ctors = {}
+                block_ctors = {}
+                for variant in type_entry.variants:
+                    if variant.is_constant:
+                        constant_ctors[variant.tag] = variant.name
+                    else:
+                        block_ctors[variant.tag] = variant.name
+                return (constant_ctors, block_ctors)
+
+    return None
+
+def _format_ocaml_value_recursive(value, process, depth=0, max_depth=4):
+    """Recursively format an OCaml value for pretty-printing.
+
+    Returns a formatted string representation of the value.
+    """
+    if depth > max_depth:
+        return "..."
+
+    # Immediate integer (tagged)
+    if value & 1:
+        return str(value >> 1)
+
+    # Null/special values
+    if value == 0:
+        return "null"
+
+    # Read block header
+    error = lldb.SBError()
+    header = process.ReadPointerFromMemory(value - 8, error)
+    if error.Fail():
+        return f"0x{value:x}"
+
+    tag = header & 0xFF
+    size = (header >> 10) & 0x3FFFFF
+
+    # String (tag 252)
+    if tag == 252:
+        return _format_string_value(value, size, process)
+
+    # Float (tag 253)
+    if tag == 253:
+        try:
+            number = _read_float64(process, value)
+            return f"{number}"
+        except:
+            return "<float>"
+
+    # Float array (tag 254)
+    if tag == 254:
+        return _format_float_array_value(value, size, process, depth)
+
+    # Closure (tag 247)
+    if tag == 247:
+        return "<closure>"
+
+    # Object (tag 248)
+    if tag == 248:
+        return "<object>"
+
+    # List detection (tag 0, size 2)
+    if tag == 0 and size == 2:
+        list_result = _try_format_as_list(value, process, depth, max_depth)
+        if list_result:
+            return list_result
+
+    # Tuple/block with tag 0
+    # Note: Arrays also use tag 0 but are indistinguishable from tuples without type info
+    if tag == 0:
+        return _format_tuple_value(value, size, process, depth, max_depth)
+
+    # Generic block
+    return _format_block_value(value, tag, size, process, depth, max_depth)
+
+def _format_string_value(value, size, process):
+    """Format an OCaml string."""
+    length = min(size * 8, MAX_STRING_BYTES)
+    error = lldb.SBError()
+    data = process.ReadMemory(value, length, error)
+    if error.Fail():
+        return '"<error>"'
+
+    terminator = data.find(b"\x00")
+    visible = data[:terminator if terminator >= 0 else len(data)]
+    try:
+        text = visible.decode("utf-8", errors="replace")
+    except:
+        text = visible.decode("latin-1", errors="replace")
+
+    # Escape special characters
+    text = text.replace("\\", "\\\\").replace('"', '\\"')
+    return f'"{text}"'
+
+def _format_float_array_value(value, size, process, depth):
+    """Format an OCaml float array."""
+    elems = []
+    limit = min(size, 10)
+    for i in range(limit):
+        try:
+            f = _read_float64(process, value + i * 8)
+            elems.append(str(f))
+        except:
+            break
+
+    if size > limit:
+        elems.append("...")
+
+    return "[|" + "; ".join(elems) + "|]"
+
+def _try_format_as_list(value, process, depth, max_depth):
+    """Try to format a block as an OCaml list. Returns None if not a list."""
+    elems = []
+    current = value
+    count = 0
+
+    while current != 1 and current != 0 and count < MAX_LIST_ELEMENTS:
+        if current & 1:
+            break
+
+        error = lldb.SBError()
+        header = process.ReadPointerFromMemory(current - 8, error)
+        if error.Fail():
+            return None
+
+        tag = header & 0xFF
+        size = (header >> 10) & 0x3FFFFF
+
+        # Lists have tag 0 and size 2
+        if tag != 0 or size != 2:
+            return None
+
+        # Read head and tail
+        head = process.ReadPointerFromMemory(current, error)
+        if error.Fail():
+            return None
+
+        tail = process.ReadPointerFromMemory(current + 8, error)
+        if error.Fail():
+            return None
+
+        # Recursively format head
+        elems.append(_format_ocaml_value_recursive(head, process, depth + 1, max_depth))
+
+        current = tail
+        count += 1
+
+    if count == 0:
+        return None
+
+    if current not in (0, 1):
+        elems.append("...")
+
+    return "[" + "; ".join(elems) + "]"
+
+def _format_tuple_value(value, size, process, depth, max_depth):
+    """Format an OCaml tuple."""
+    if size == 0:
+        return "()"
+
+    elems = []
+    limit = min(size, MAX_TUPLE_ELEMENTS)
+    error = lldb.SBError()
+
+    for i in range(limit):
+        field = process.ReadPointerFromMemory(value + i * 8, error)
+        if error.Fail():
+            elems.append("<error>")
+            continue
+        elems.append(_format_ocaml_value_recursive(field, process, depth + 1, max_depth))
+
+    if size > limit:
+        elems.append("...")
+
+    return "(" + ", ".join(elems) + ")"
+
+def _format_array_value(value, size, process, depth, max_depth):
+    """Format an OCaml array (when we know it's an array from type info)."""
+    if size == 0:
+        return "[||]"
+
+    elems = []
+    limit = min(size, 20)  # Show more elements for arrays
+    error = lldb.SBError()
+
+    for i in range(limit):
+        field = process.ReadPointerFromMemory(value + i * 8, error)
+        if error.Fail():
+            elems.append("<error>")
+            continue
+        elems.append(_format_ocaml_value_recursive(field, process, depth + 1, max_depth))
+
+    if size > limit:
+        elems.append("...")
+
+    return "[|" + "; ".join(elems) + "|]"
+
+def _format_block_value(value, tag, size, process, depth, max_depth):
+    """Format a generic OCaml block."""
+    elems = []
+    limit = min(size, 3)
+    error = lldb.SBError()
+
+    for i in range(limit):
+        field = process.ReadPointerFromMemory(value + i * 8, error)
+        if error.Fail():
+            break
+        elems.append(_format_ocaml_value_recursive(field, process, depth + 1, max_depth))
+
+    if size > limit:
+        elems.append("...")
+
+    field_str = ", ".join(elems) if elems else ""
+    return f"Block(tag={tag}, {field_str})"
+
+def _format_variant_with_ctors(value, process, type_name, ctor_info, depth=0, max_depth=4):
+    """Format OCaml variant using parsed DWARF constructor information.
+
+    Args:
+        value: The OCaml value to format
+        process: LLDB process for memory access
+        type_name: Name of the variant type
+        ctor_info: Tuple of (constant_ctors, block_ctors) dicts from DWARF
+        depth: Current recursion depth
+        max_depth: Maximum recursion depth
+
+    Returns:
+        Formatted string representation
+    """
+    constant_ctors, block_ctors = ctor_info
+
+    # Special handling for list type
+    if type_name == "list":
+        if value == 1:  # Empty list
+            return "[]"
+        # Try to format as list
+        list_result = _try_format_as_list(value, process, depth, max_depth)
+        if list_result:
+            return list_result
+
+    # Immediate value (odd) - constant constructor
+    if value & 1:
+        # Decode tag from immediate encoding: (tag * 2) + 1
+        tag_value = value >> 1
+        constructor_name = constant_ctors.get(tag_value, f"{type_name}(const_tag={tag_value})")
+        return constructor_name
+
+    # Block variant - read header to get tag
+    error = lldb.SBError()
+    header = process.ReadPointerFromMemory(value - 8, error)
+    if error.Fail():
+        return f"{type_name}<read error>"
+
+    tag = header & 0xFF
+    size = (header >> 10) & 0x3FFFFF
+
+    # Get constructor name from DWARF info (block constructors)
+    constructor_name = block_ctors.get(tag, f"{type_name}_block_tag{tag}")
+
+    # Read and recursively format fields
+    fields = []
+    limit = min(size, 10)  # Show up to 10 fields
+    for i in range(limit):
+        field = process.ReadPointerFromMemory(value + i * 8, error)
+        if error.Fail():
+            break
+        # Recursively format the field value
+        fields.append(_format_ocaml_value_recursive(field, process, depth + 1, max_depth))
+
+    if size > limit:
+        fields.append("...")
+
+    # Format with constructor name
+    if fields:
+        field_str = ", ".join(fields)
+        return f"{constructor_name}({field_str})"
+    else:
+        return constructor_name
+
 def _format_variant(value, process, type_name):
-    """Format generic OCaml variant by reading tag and fields"""
+    """Format generic OCaml variant by reading tag and fields.
+
+    This is a fallback formatter that uses hardcoded heuristics.
+    Prefer _format_variant_with_ctors when DWARF info is available.
+    """
     if value == 1:  # Constant constructor (often tag 0)
+        constructors = _get_variant_constructors(type_name)
+        if constructors and 0 in constructors:
+            return constructors[0]
         return f"{type_name}(tag=0)"
 
     if value & 1:  # Immediate value
@@ -1339,6 +1724,10 @@ def _format_variant(value, process, type_name):
 
     tag = header & 0xFF
     size = (header >> 10) & 0x3FFFFF
+
+    # Get constructor name if available
+    constructors = _get_variant_constructors(type_name)
+    constructor_name = constructors.get(tag) if constructors else None
 
     # Read fields
     fields = []
@@ -1354,8 +1743,12 @@ def _format_variant(value, process, type_name):
     if size > 3:
         fields.append("...")
 
-    field_str = ", ".join(fields) if fields else ""
-    return f"{type_name}(tag={tag}, {field_str})"
+    if constructor_name:
+        field_str = ", ".join(fields) if fields else ""
+        return f"{constructor_name}({field_str})" if field_str else constructor_name
+    else:
+        field_str = ", ".join(fields) if fields else ""
+        return f"{type_name}(tag={tag}, {field_str})"
 
 
 def ocaml_print(debugger, command, exe_ctx, result, _dict):
@@ -1378,7 +1771,7 @@ def ocaml_print(debugger, command, exe_ctx, result, _dict):
         return
 
     # Automatic pretty printing for recognized types
-    if HAS_VALUE_DECODER and match.type_name:
+    if match.type_name:
         var = frame.FindVariable(name)
         if var and var.IsValid():
             error = lldb.SBError()
@@ -1391,21 +1784,38 @@ def ocaml_print(debugger, command, exe_ctx, result, _dict):
                 try:
                     formatted = None
 
-                    # Tree types - hierarchical visualization
-                    if "tree" in type_lower:
-                        formatted = format_ocaml_value(value, process, tree_format=True, max_depth=10)
+                    # First, try to get variant constructor information from DWARF
+                    variant_ctors = _get_variant_constructors_from_dwarf(frame, match.type_name)
 
-                    # List types - compact horizontal or vertical display
-                    elif "list" in type_lower:
-                        formatted = _format_list(value, process)
+                    # If we have DWARF variant info, use it for formatting
+                    if variant_ctors:
+                        formatted = _format_variant_with_ctors(value, process, match.type_name, variant_ctors)
 
-                    # Option types - clear Some/None display
-                    elif "option" in type_lower:
-                        formatted = _format_option(value, process)
+                    # Array types - format as [|...|]
+                    elif "array" in type_lower:
+                        # Read block to get size
+                        if value != 0 and (value & 1) == 0:
+                            header = process.ReadPointerFromMemory(value - 8, error)
+                            if not error.Fail():
+                                size = (header >> 10) & 0x3FFFFF
+                                formatted = _format_array_value(value, size, process, 0, 4)
 
-                    # Generic variants - automatic variant pretty printing
-                    else:
-                        # Try to format as a generic variant
+                    # Otherwise fall back to heuristic formatters
+                    elif HAS_VALUE_DECODER:
+                        # Tree types - hierarchical visualization
+                        if "tree" in type_lower:
+                            formatted = format_ocaml_value(value, process, tree_format=True, max_depth=10)
+
+                        # List types - compact horizontal or vertical display
+                        elif "list" in type_lower:
+                            formatted = _format_list(value, process)
+
+                        # Option types - clear Some/None display
+                        elif "option" in type_lower:
+                            formatted = _format_option(value, process)
+
+                    # Generic variants - use hardcoded mappings as last resort
+                    if not formatted:
                         formatted = _format_variant(value, process, match.type_name)
 
                     if formatted:

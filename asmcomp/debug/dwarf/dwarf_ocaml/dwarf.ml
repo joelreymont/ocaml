@@ -24,7 +24,11 @@ type t = {
   mutable current_function : Proto_die.t option;
   mutable scope_stack : scope_context list;
       (* Stack of scopes for nested lexical blocks *)
-}
+  mutable current_namespace : string option;
+      (* Current module namespace for nesting functions *)
+  mutable namespace_dies : (string, Proto_die.t) Hashtbl.t;
+      (* Cache of namespace DIEs by module name *)
+} [@@warning "-69"]  (* namespace_dies is mutated via Hashtbl operations *)
 
 let is_enabled () =
   (* Check if debugging is enabled and DWARF fidelity is set *)
@@ -53,19 +57,49 @@ let create ~source_file ~compilation_dir ~producer ~address_size () =
   let _type_offsets = Dwarf_world.add_standard_types world in
 
   (* Add common OCaml variant types for debugging.
-     This includes tree, list, option, etc. that users commonly debug. *)
+     This includes tree, list, option, bool, etc. that users commonly debug.
+     These types will be available in DWARF for LLDB to use for pretty-printing. *)
   let _tree_type_offset = Dwarf_world.add_tree_variant_type world
     ~type_name:"tree" in
+  let _list_type_offset = Dwarf_world.add_list_variant_type world
+    ~type_name:"list" in
+  let _option_type_offset = Dwarf_world.add_option_variant_type world
+    ~type_name:"option" in
+  let _bool_type_offset = Dwarf_world.add_bool_variant_type world
+    ~type_name:"bool" in
 
-  { source_file; world; current_function = None; scope_stack = [] }
+  { source_file; world; current_function = None; scope_stack = [];
+    current_namespace = None; namespace_dies = Hashtbl.create 16 }
 
+
+let get_or_create_namespace_die t namespace_name =
+  (* Check if we already have a namespace DIE for this module *)
+  match Hashtbl.find_opt t.namespace_dies namespace_name with
+  | Some ns_die -> ns_die
+  | None ->
+      (* Create a new namespace DIE *)
+      let ns_die = Proto_die.create Dwarf_tag.DW_TAG_namespace in
+      let ns_die = Proto_die.with_name ns_die namespace_name in
+      Hashtbl.add t.namespace_dies namespace_name ns_die;
+      ns_die
 
 let finalize_current_function t =
-  (* Add the current function (with all its variables) to the world *)
+  (* Add the current function (with all its variables) to the world or namespace *)
   match t.current_function with
   | None -> ()
   | Some func_die ->
-      Dwarf_world.add_die t.world func_die;
+      (match t.current_namespace with
+       | None ->
+           (* No namespace - add function directly to world *)
+           Dwarf_world.add_die t.world func_die
+       | Some ns_name ->
+           (* Add function to namespace DIE *)
+           let ns_die = get_or_create_namespace_die t ns_name in
+           let ns_die = Proto_die.add_child ns_die func_die in
+           (* Update namespace DIE in cache *)
+           Hashtbl.replace t.namespace_dies ns_name ns_die;
+           (* Add namespace DIE to world (will be deduplicated if already added) *)
+           Dwarf_world.add_die t.world ns_die);
       t.current_function <- None;
       t.scope_stack <- []
 
@@ -237,6 +271,10 @@ let add_line_number t ~address ~file ~line ~column =
     ~file
     ~line
     ~column
+
+let set_namespace t namespace_name =
+  (* Set the current namespace for subsequent functions *)
+  t.current_namespace <- Some namespace_name
 
 let emit t =
   (* Finalize any pending function *)

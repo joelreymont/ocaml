@@ -66,7 +66,7 @@ type dwarf_fission =
   | Fission_split        (* Split debug info into separate file *)
 
 (* DWARF control flags *)
-let gdwarf_fidelity = ref None  (* Set to Some Enhanced when -g is used *)
+let gdwarf_fidelity = ref (Some Enhanced)  (* Set to Some Enhanced when -g is used *)
 and dwarf_inlined_frames = ref true     (* -gdwarf-inlined-frames *)
 and dwarf_may_alter_codegen = ref false (* -gdwarf-may-alter-codegen *)
 and dwarf_max_function_complexity = ref None (* -gdwarf-max-function-complexity *)

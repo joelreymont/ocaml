@@ -93,3 +93,30 @@ val generate_tree_variant :
 (** Calculate DIE size for a variant type.
     Used for offset calculations when adding to compilation unit. *)
 val calculate_variant_die_size : variant_spec -> int
+
+(** Helper: Generate list variant type.
+    This is the canonical example for list types:
+      type 'a list = [] | (::) of 'a * 'a list
+*)
+val generate_list_variant :
+  type_name:string ->
+  value_type_ref:int ->
+  list_type_ref:int ->
+  Proto_die.t
+
+(** Helper: Generate option variant type.
+    For option types:
+      type 'a option = None | Some of 'a
+*)
+val generate_option_variant :
+  type_name:string ->
+  value_type_ref:int ->
+  Proto_die.t
+
+(** Helper: Generate bool variant type.
+    For boolean types:
+      type bool = false | true
+*)
+val generate_bool_variant :
+  type_name:string ->
+  Proto_die.t

@@ -117,6 +117,7 @@ module Dwarf_helpers : sig
   val add_variable : name:string -> locations:Variable_location.location list -> is_parameter:bool -> machtype:Cmm.machtype -> unit
   val add_lexical_block : start_address:Code_address.t -> end_address:Code_address.t -> unit
   val end_lexical_block : unit -> unit
+  val set_namespace : string -> unit
   val emit_dwarf : out_channel -> unit
   val reset : unit -> unit
 end

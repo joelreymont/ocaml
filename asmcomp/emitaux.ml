@@ -585,6 +585,12 @@ module Dwarf_helpers = struct
         Dwarf.end_lexical_block state
   [@@warning "-32"] (* Used in emit.mlp after preprocessing *)
 
+  let set_namespace namespace_name =
+    match !dwarf_state with
+    | None -> ()
+    | Some state ->
+        Dwarf.set_namespace state namespace_name
+
   let emit_section_bytes oc bytes =
     (* Emit bytes as .byte directives, 16 bytes per line *)
     let len = Bytes.length bytes in
@@ -777,6 +783,8 @@ module Dwarf_helpers = struct
           (match sections.debug_line with
            | Some (bytes, relocs) ->
                output_string oc "\t.section __DWARF,__debug_line,regular,debug\n";
+               (* Emit section base label for subtractor relocations *)
+               output_string oc "__debug_line_section_base:\n";
                (* Emit label for this CU's line table if present *)
                (match sections.line_table_label with
                 | Some label -> Printf.fprintf oc "%s:\n" label

@@ -92,6 +92,21 @@ val add_variant_type : t -> Variant_type.variant_spec -> int
     Returns the offset of the tree type DIE. *)
 val add_tree_variant_type : t -> type_name:string -> int
 
+(** Helper: Add a list variant type.
+    Generates a list type with [] and (::) constructors.
+    Returns the offset of the list type DIE. *)
+val add_list_variant_type : t -> type_name:string -> int
+
+(** Helper: Add an option variant type.
+    Generates an option type with None and Some constructors.
+    Returns the offset of the option type DIE. *)
+val add_option_variant_type : t -> type_name:string -> int
+
+(** Helper: Add a bool variant type.
+    Generates a bool type with false and true constructors.
+    Returns the offset of the bool type DIE. *)
+val add_bool_variant_type : t -> type_name:string -> int
+
 (** Emit all DWARF sections to a buffer *)
 type relocation = {
   offset : int;
