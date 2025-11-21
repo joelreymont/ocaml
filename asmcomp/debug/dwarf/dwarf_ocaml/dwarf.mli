@@ -44,13 +44,15 @@ val create :
 
     Parameters:
     - t: DWARF state
-    - name: Function name
+    - name: Simple function name (for breakpoints)
+    - linkage_name: Full mangled function name (for linking)
     - start_address: Function start label/address
     - end_address: Function end label/address
 *)
 val add_function :
   t ->
   name:string ->
+  linkage_name:string ->
   start_address:Code_address.t ->
   end_address:Code_address.t ->
   unit

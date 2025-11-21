@@ -52,6 +52,11 @@ let create ~source_file ~compilation_dir ~producer ~address_size () =
      These will be the first DIEs after the compilation unit DIE *)
   let _type_offsets = Dwarf_world.add_standard_types world in
 
+  (* Add common OCaml variant types for debugging.
+     This includes tree, list, option, etc. that users commonly debug. *)
+  let _tree_type_offset = Dwarf_world.add_tree_variant_type world
+    ~type_name:"tree" in
+
   { source_file; world; current_function = None; scope_stack = [] }
 
 
@@ -82,13 +87,14 @@ let create_frame_base_expression () =
   end;
   Buffer.to_bytes buf
 
-let add_function t ~name ~start_address ~end_address =
+let add_function t ~name ~linkage_name ~start_address ~end_address =
   (* Finalize any previous function first *)
   finalize_current_function t;
 
   (* Create a new function DIE *)
   let func_die = Proto_die.create Dwarf_tag.DW_TAG_subprogram in
   let func_die = Proto_die.with_name func_die name in
+  let func_die = Proto_die.with_linkage_name func_die linkage_name in
   let func_die = Proto_die.with_pc_range func_die ~start:start_address ~end_:end_address in
   let func_die = Proto_die.with_external func_die true in
   (* Link function to source file in line table (file index 1) *)

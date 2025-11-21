@@ -1301,8 +1301,42 @@ let fundecl fundecl =
     let end_label = fundecl.fun_name ^ "_end" in
     `{emit_symbol end_label}:\n`;
     let end_addr = Code_address.from_label (Emitaux.string_of_symbol end_label) in
+    (* Extract simple name from mangled name for breakpoints *)
+    (* Mangled names are like camlModule$function_123, we want just "function" *)
+    let simple_name =
+      match String.index_opt fundecl.fun_name '$' with
+      | None -> fundecl.fun_name  (* No mangling, use as is *)
+      | Some dollar_pos ->
+          let after_dollar = String.sub fundecl.fun_name (dollar_pos + 1)
+            (String.length fundecl.fun_name - dollar_pos - 1) in
+          (* Remove trailing _NNN suffix *)
+          (match String.rindex_opt after_dollar '_' with
+           | None -> after_dollar
+           | Some underscore_pos ->
+               String.sub after_dollar 0 underscore_pos)
+    in
+    (* Extract module name and set DWARF namespace for proper breakpoint resolution *)
+    begin match String.index_opt fundecl.fun_name '$' with
+    | None -> ()  (* Not a mangled OCaml name *)
+    | Some dollar_pos when dollar_pos > 4 ->  (* Skip "caml" prefix *)
+        let module_name = String.sub fundecl.fun_name 4 (dollar_pos - 4) in
+        (* Set namespace in DWARF so lldb can resolve Module::function breakpoints *)
+        Emitaux.Dwarf_helpers.set_namespace module_name;
+        (* Also emit symbol alias for compatibility *)
+        let module_qualified = "_" ^ module_name ^ "::" ^ simple_name in
+        emit_string "\t.globl\t\"";
+        emit_string module_qualified;
+        emit_string "\"\n";
+        emit_string "\t.set\t\"";
+        emit_string module_qualified;
+        emit_string "\", ";
+        emit_symbol fundecl.fun_name;
+        emit_string "\n"
+    | _ -> ()
+    end;
     Emitaux.Dwarf_helpers.add_function
-      ~name:fundecl.fun_name
+      ~name:simple_name
+      ~linkage_name:fundecl.fun_name
       ~start_address:start_addr
       ~end_address:end_addr;
     (* Emit parameters and local variables from var_info *)

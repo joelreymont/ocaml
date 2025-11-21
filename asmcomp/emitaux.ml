@@ -553,11 +553,11 @@ module Dwarf_helpers = struct
       dwarf_state := Some state
     end
 
-  let add_function ~name ~start_address ~end_address =
+  let add_function ~name ~linkage_name ~start_address ~end_address =
     match !dwarf_state with
     | None -> ()
     | Some state ->
-        Dwarf.add_function state ~name ~start_address ~end_address
+        Dwarf.add_function state ~name ~linkage_name ~start_address ~end_address
 
   let add_line_number ~address ~file ~line ~column =
     match !dwarf_state with
