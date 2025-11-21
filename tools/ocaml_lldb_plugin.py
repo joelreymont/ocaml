@@ -8,6 +8,13 @@ from typing import Dict, List, Optional, Sequence, Tuple
 
 import lldb
 
+# Import OCaml value decoder for tree visualization
+try:
+    from ocaml_value_decoder import format_ocaml_value, TreeVisualizer, OCamlValueDecoder
+    HAS_VALUE_DECODER = True
+except ImportError:
+    HAS_VALUE_DECODER = False
+
 OCAML_CATEGORY = "OCaml"
 MAX_LIST_ELEMENTS = 32
 MAX_TUPLE_ELEMENTS = 16
@@ -23,14 +30,21 @@ DW_TAG_TYPEDEF = 0x16
 DW_TAG_STRUCTURE_TYPE = 0x13
 DW_TAG_UNION_TYPE = 0x17
 DW_TAG_ENUMERATION_TYPE = 0x04
+DW_TAG_MEMBER = 0x0D
+DW_TAG_VARIANT = 0x19
+DW_TAG_VARIANT_PART = 0x33
+DW_TAG_NAMESPACE = 0x39
 
 DW_AT_NAME = 0x03
 DW_AT_LOW_PC = 0x11
 DW_AT_HIGH_PC = 0x12
 DW_AT_LOCATION = 0x02
+DW_AT_DISCR_VALUE = 0x16
+DW_AT_DATA_MEMBER_LOCATION = 0x38
+DW_AT_TYPE = 0x49
+DW_AT_LINKAGE_NAME = 0x6E
 DW_AT_STR_OFFSETS_BASE = 0x72  # DWARF v5 str offsets base (OCaml toolchain)
 DW_AT_ADDR_BASE = 0x98
-DW_AT_TYPE = 0x49
 DW_AT_LOCLISTS_BASE = 0x8C
 
 DW_FORM_ADDR = 0x01
@@ -1257,6 +1271,93 @@ def ocaml_vars(debugger, command, exe_ctx, result, _dict):
         _print("No OCaml variables found")
 
 
+def _format_list(value, process):
+    """Format OCaml list as [e1; e2; e3; ...]"""
+    if value == 1:  # Empty list (nil)
+        return "[]"
+
+    elements = []
+    current = value
+    max_elements = 20
+
+    while current != 1 and len(elements) < max_elements:
+        # Read block header
+        error = lldb.SBError()
+        # List node: [header | head | tail]
+        head_ptr = current
+        head = process.ReadPointerFromMemory(head_ptr, error)
+        if error.Fail():
+            break
+        tail = process.ReadPointerFromMemory(head_ptr + 8, error)
+        if error.Fail():
+            break
+
+        # Format head element (assuming int for now)
+        if head & 1:  # Tagged int
+            elements.append(str(head >> 1))
+        else:
+            elements.append(f"0x{head:x}")
+
+        current = tail
+
+    if current != 1:
+        elements.append("...")
+
+    return "[" + "; ".join(elements) + "]"
+
+
+def _format_option(value, process):
+    """Format OCaml option as None or Some(value)"""
+    if value == 1:  # None
+        return "None"
+
+    # Some(x) - read the value
+    error = lldb.SBError()
+    inner = process.ReadPointerFromMemory(value, error)
+    if error.Fail():
+        return f"Some(0x{value:x})"
+
+    if inner & 1:  # Tagged int
+        return f"Some({inner >> 1})"
+    else:
+        return f"Some(0x{inner:x})"
+
+
+def _format_variant(value, process, type_name):
+    """Format generic OCaml variant by reading tag and fields"""
+    if value == 1:  # Constant constructor (often tag 0)
+        return f"{type_name}(tag=0)"
+
+    if value & 1:  # Immediate value
+        return f"{value >> 1}"
+
+    # Block variant - read header to get tag
+    error = lldb.SBError()
+    header = process.ReadPointerFromMemory(value - 8, error)
+    if error.Fail():
+        return None
+
+    tag = header & 0xFF
+    size = (header >> 10) & 0x3FFFFF
+
+    # Read fields
+    fields = []
+    for i in range(min(size, 3)):  # Show first 3 fields
+        field = process.ReadPointerFromMemory(value + i * 8, error)
+        if error.Fail():
+            break
+        if field & 1:
+            fields.append(str(field >> 1))
+        else:
+            fields.append(f"0x{field:x}")
+
+    if size > 3:
+        fields.append("...")
+
+    field_str = ", ".join(fields) if fields else ""
+    return f"{type_name}(tag={tag}, {field_str})"
+
+
 def ocaml_print(debugger, command, exe_ctx, result, _dict):
     frame = exe_ctx.frame
     name = command.strip()
@@ -1275,6 +1376,45 @@ def ocaml_print(debugger, command, exe_ctx, result, _dict):
     if not match:
         _fallback_expression(debugger, command, result)
         return
+
+    # Automatic pretty printing for recognized types
+    if HAS_VALUE_DECODER and match.type_name:
+        var = frame.FindVariable(name)
+        if var and var.IsValid():
+            error = lldb.SBError()
+            value = var.GetValueAsUnsigned(error)
+            if not error.Fail():
+                process = frame.GetThread().GetProcess()
+                type_lower = match.type_name.lower()
+
+                # Try type-specific formatters
+                try:
+                    formatted = None
+
+                    # Tree types - hierarchical visualization
+                    if "tree" in type_lower:
+                        formatted = format_ocaml_value(value, process, tree_format=True, max_depth=10)
+
+                    # List types - compact horizontal or vertical display
+                    elif "list" in type_lower:
+                        formatted = _format_list(value, process)
+
+                    # Option types - clear Some/None display
+                    elif "option" in type_lower:
+                        formatted = _format_option(value, process)
+
+                    # Generic variants - automatic variant pretty printing
+                    else:
+                        # Try to format as a generic variant
+                        formatted = _format_variant(value, process, match.type_name)
+
+                    if formatted:
+                        result.AppendMessage(f"{name} ({match.type_name}) =")
+                        result.AppendMessage(formatted)
+                        return
+                except Exception as e:
+                    pass  # Fall through to standard formatting
+
     process = frame.GetThread().GetProcess()
     target = process.GetTarget()
     arch = _Architecture(target.GetTriple())
@@ -1284,6 +1424,198 @@ def ocaml_print(debugger, command, exe_ctx, result, _dict):
         result.AppendMessage(formatted)
     else:
         _fallback_expression(debugger, command, result)
+
+
+def ocaml_tree(debugger, command, exe_ctx, result, _dict):
+    """LLDB command to visualize an OCaml tree variable.
+
+    Usage: ocaml_tree <variable-name>
+
+    Example:
+        (lldb) ocaml_tree tree
+        Node(5)
+        ├─left:
+          Node(3)
+          ├─left:
+            Empty
+          └─right:
+            Empty
+        └─right:
+          Node(7)
+    """
+    if not HAS_VALUE_DECODER:
+        result.AppendMessage("Error: ocaml_value_decoder module not found. "
+                            "Make sure ocaml_value_decoder.py is in the Python path.")
+        return
+
+    frame = exe_ctx.frame
+    var_name = command.strip()
+
+    if not frame or not frame.IsValid() or not var_name:
+        result.AppendMessage("Usage: ocaml_tree <variable-name>")
+        return
+
+    # Try to get the variable value
+    var = frame.FindVariable(var_name)
+    if not var or not var.IsValid():
+        result.AppendMessage(f"Variable '{var_name}' not found")
+        return
+
+    # Get the value
+    error = lldb.SBError()
+    value = var.GetValueAsUnsigned(error)
+    if error.Fail():
+        result.AppendMessage(f"Could not read value: {error}")
+        return
+
+    # Get process for memory access
+    process = frame.GetThread().GetProcess()
+    if not process or not process.IsValid():
+        result.AppendMessage("No valid process")
+        return
+
+    # Format and display
+    try:
+        formatted = format_ocaml_value(value, process, tree_format=True, max_depth=10)
+        result.AppendMessage(f"{var_name} =")
+        result.AppendMessage(formatted)
+    except Exception as e:
+        result.AppendMessage(f"Error formatting tree: {e}")
+
+
+def _build_function_map(target: lldb.SBTarget) -> Dict[str, str]:
+    """Build a map of Module::function -> mangled_name from DWARF."""
+    function_map = {}
+
+    for module in target.module_iter():
+        if not module.IsValid():
+            continue
+
+        # Read DWARF sections
+        debug_info = _read_section_bytes(module, ["__debug_info", ".debug_info"])
+        debug_abbrev = _read_section_bytes(module, ["__debug_abbrev", ".debug_abbrev"])
+        debug_str = _read_section_bytes(module, ["__debug_str", ".debug_str"])
+
+        if not debug_info or not debug_abbrev:
+            continue
+
+        try:
+            reader = _ByteReader(debug_info)
+            str_reader = _ByteReader(debug_str or b"")
+
+            # Parse compilation units
+            while reader.offset < len(debug_info):
+                cu_start = reader.offset
+
+                # Read CU header
+                unit_length = reader.read_u32()
+                if unit_length == 0xFFFFFFFF:
+                    unit_length = reader.read_u64()
+
+                if unit_length == 0:
+                    break
+
+                cu_end = reader.offset + unit_length
+                version = reader.read_u16()
+
+                if version == 5:
+                    unit_type = reader.read_u8()
+                    addr_size = reader.read_u8()
+                    abbrev_offset = reader.read_u32()
+                else:
+                    abbrev_offset = reader.read_u32()
+                    addr_size = reader.read_u8()
+
+                # Parse DIEs looking for namespaces and functions
+                current_namespace = None
+
+                while reader.offset < cu_end:
+                    abbrev_code = reader.read_uleb128()
+                    if abbrev_code == 0:
+                        # NULL entry - end of children
+                        current_namespace = None
+                        continue
+
+                    # We'd need to parse abbreviations here, but for simplicity
+                    # let's use LLDB's API instead
+                    break
+
+                reader.offset = cu_end
+
+        except:
+            pass
+
+    return function_map
+
+
+def ocaml_break(debugger, command, exe_ctx, result, _dict):
+    """Set breakpoint on OCaml function using Module::function syntax.
+
+    Usage: ob Module::function
+           ob function  (searches all modules)
+
+    Examples:
+        (lldb) ob List::map
+        (lldb) ob String::concat
+        (lldb) ob insert
+    """
+    if not command or not command.strip():
+        result.AppendMessage("Usage: ob Module::function  or  ob function")
+        result.AppendMessage("Examples:")
+        result.AppendMessage("  ob Test_breakpoints::insert")
+        result.AppendMessage("  ob insert")
+        return
+
+    target = exe_ctx.target
+    if not target or not target.IsValid():
+        result.AppendMessage("No valid target")
+        return
+
+    func_spec = command.strip()
+
+    # Try to use LLDB's SBTarget API to find functions
+    # LLDB can search by regex, so we can use our symbol aliases
+    if "::" in func_spec:
+        # Module-qualified: use regex to match the symbol alias
+        # The symbol is: _Module::function or Module::function
+        pattern = f"^_?{func_spec}$"
+        bp = target.BreakpointCreateByRegex(pattern)
+
+        if bp.GetNumLocations() > 0:
+            result.AppendMessage(f"Breakpoint {bp.GetID()}: {bp.GetNumLocations()} location(s)")
+            for i in range(bp.GetNumLocations()):
+                loc = bp.GetLocationAtIndex(i)
+                addr = loc.GetAddress()
+                symbol = addr.GetSymbol()
+                if symbol and symbol.IsValid():
+                    result.AppendMessage(f"  {symbol.GetName()}")
+        else:
+            result.AppendMessage(f"No locations found for '{func_spec}'")
+            result.AppendMessage("Try: image lookup -r -s '" + func_spec.split("::")[0] + "::'")
+    else:
+        # Simple function name: search all modules
+        # This will match any function with this name
+        pattern = f"^_?\\w+::{func_spec}$"
+        bp = target.BreakpointCreateByRegex(pattern)
+
+        if bp.GetNumLocations() > 0:
+            result.AppendMessage(f"Breakpoint {bp.GetID()}: {bp.GetNumLocations()} location(s)")
+            for i in range(min(10, bp.GetNumLocations())):  # Show first 10
+                loc = bp.GetLocationAtIndex(i)
+                addr = loc.GetAddress()
+                symbol = addr.GetSymbol()
+                if symbol and symbol.IsValid():
+                    result.AppendMessage(f"  {symbol.GetName()}")
+            if bp.GetNumLocations() > 10:
+                result.AppendMessage(f"  ... and {bp.GetNumLocations() - 10} more")
+        else:
+            # Fallback: try exact mangled name
+            bp = target.BreakpointCreateByName(func_spec)
+            if bp.GetNumLocations() > 0:
+                result.AppendMessage(f"Breakpoint {bp.GetID()}: {bp.GetNumLocations()} location(s)")
+            else:
+                result.AppendMessage(f"No locations found for '{func_spec}'")
+                result.AppendMessage("Note: Use Module::function syntax (e.g., ob Test_breakpoints::insert)")
 
 
 def __lldb_init_module(debugger, _dict):
@@ -1303,4 +1635,22 @@ def __lldb_init_module(debugger, _dict):
     debugger.HandleCommand(
         f'command script add -f {__name__}.ocaml_print p'
     )
-    print("OCaml LLDB helpers loaded (commands: ocaml_vars)")
+    debugger.HandleCommand(
+        f'command script add -f {__name__}.ocaml_break ob'
+    )
+    # Also make 'ob' work as standard 'b' for OCaml breakpoints
+    # Users can use: b Module::function or ob Module::function interchangeably
+    debugger.HandleCommand(
+        'command alias b ob'
+    )
+    if HAS_VALUE_DECODER:
+        debugger.HandleCommand(
+            f'command script add -f {__name__}.ocaml_tree ocaml_tree'
+        )
+        print("OCaml LLDB helpers loaded")
+        print("  Commands: ocaml_vars, ocaml_tree")
+        print("  Breakpoints: b Module::function  (standard LLDB command now OCaml-aware!)")
+    else:
+        print("OCaml LLDB helpers loaded")
+        print("  Commands: ocaml_vars")
+        print("  Breakpoints: b Module::function  (standard LLDB command now OCaml-aware!")
