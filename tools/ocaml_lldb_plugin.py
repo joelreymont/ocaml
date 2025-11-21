@@ -398,6 +398,13 @@ class _DWARFModuleParser:
             attrs = self._read_attributes(reader, entry, context)
             self._record_type_die(entry.tag, attrs, die_offset)
             child_function = current_function
+
+            # Handle namespace DIEs - recursively parse their children
+            if entry.tag == DW_TAG_NAMESPACE:
+                if entry.has_children:
+                    self._parse_children(reader, unit_end, abbrev_table, context, current_function, parent_type_offset)
+                continue
+
             if entry.tag == DW_TAG_SUBPROGRAM:
                 name = _coerce_str(attrs.get(DW_AT_NAME))
                 low_pc = attrs.get(DW_AT_LOW_PC)
@@ -899,16 +906,34 @@ _DWARF_CACHE: Dict[str, Optional[_DWARFModuleParser]] = {}
 
 
 def _get_dwarf_module(frame: lldb.SBFrame) -> Optional[_DWARFModuleParser]:
+    # First try the frame's module
     module = frame.GetModule()
-    if not module or not module.IsValid():
-        return None
-    key = _module_key(module)
-    if key not in _DWARF_CACHE:
-        try:
-            _DWARF_CACHE[key] = _DWARFModuleParser(module)
-        except Exception:
-            _DWARF_CACHE[key] = None
-    return _DWARF_CACHE[key]
+    if module and module.IsValid():
+        key = _module_key(module)
+        if key not in _DWARF_CACHE:
+            try:
+                _DWARF_CACHE[key] = _DWARFModuleParser(module)
+            except Exception:
+                _DWARF_CACHE[key] = None
+        if _DWARF_CACHE[key] and len(_DWARF_CACHE[key].functions) > 0:
+            return _DWARF_CACHE[key]
+
+    # If that didn't work, search all modules in the target
+    target = frame.GetThread().GetProcess().GetTarget()
+    for i in range(target.GetNumModules()):
+        module = target.GetModuleAtIndex(i)
+        if not module or not module.IsValid():
+            continue
+        key = _module_key(module)
+        if key not in _DWARF_CACHE:
+            try:
+                _DWARF_CACHE[key] = _DWARFModuleParser(module)
+            except Exception:
+                _DWARF_CACHE[key] = None
+        if _DWARF_CACHE[key] and len(_DWARF_CACHE[key].functions) > 0:
+            return _DWARF_CACHE[key]
+
+    return None
 
 
 class _Architecture:
@@ -1298,15 +1323,30 @@ def ocaml_vars(debugger, command, exe_ctx, result, _dict):
     if not frame or not frame.IsValid():
         _print("No frame available")
         return
+
+    # Try using LLDB's built-in variable API first
+    process = frame.GetThread().GetProcess()
+    var_list = frame.GetVariables(True, True, True, False)  # args, locals, statics, in_scope_only
+
+    if var_list.GetSize() > 0:
+        for i in range(var_list.GetSize()):
+            var = var_list.GetValueAtIndex(i)
+            name = var.GetName()
+            value = var.GetValueAsUnsigned()
+            desc = _describe_ocaml_value(process, value)
+            _print(f"{name} = {desc.display}")
+        return
+
+    # Fallback to manual DWARF parsing
     parser = _get_dwarf_module(frame)
     if not parser:
         _print("DWARF data not available for this module")
         return
+
     func = _find_function(frame, parser)
     if not func:
         _print("No OCaml DWARF function found for this frame")
         return
-    process = frame.GetThread().GetProcess()
     target = process.GetTarget()
     arch = _Architecture(target.GetTriple())
     pc = frame.GetPCAddress().GetLoadAddress(target)
