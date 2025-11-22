@@ -691,11 +691,11 @@ module Dwarf_helpers = struct
                     section-relative offset in the merged .debug_line section. *)
                  Printf.fprintf oc "\t.long %s\n" label
                end else if Config.system = "macosx" then begin
-                 (* Mach-O: Use subtractor relocation with weak section base symbol.
-                    This creates a pair of relocations (ARM64_RELOC_SUBTRACTOR +
-                    ARM64_RELOC_UNSIGNED) that the linker resolves to the offset
-                    from the start of the merged .debug_line section. *)
-                 Printf.fprintf oc "\t.long %s - __debug_line_section_base\n" label
+                 (* Mach-O: Use direct label reference to avoid dsymutil warnings.
+                    This avoids ARM64_RELOC_SUBTRACTOR relocations which dsymutil doesn't support.
+                    Note: This works for single-object compilation but may need adjustment for
+                    multi-object linking scenarios. For now, prioritize dsymutil compatibility. *)
+                 Printf.fprintf oc "\t.long %s\n" label
                end else begin
                  (* Other platforms: DWARF multi-object linking not yet supported.
                     Assembly-time offset computation (label - Ldebug_line_start) breaks
@@ -779,6 +779,16 @@ module Dwarf_helpers = struct
                output_string oc "\t.section __DWARF,__debug_str_offsets,regular,debug\n";
                emit_section_bytes_with_both_relocs oc Arch.size_addr bytes [] [] str_relocs
            | None -> ());
+          (* DWARF 5: .debug_addr section (address table) *)
+          (match sections.debug_addr with
+           | Some (bytes, relocs) ->
+               output_string oc "\t.section __DWARF,__debug_addr,regular,debug\n";
+               (* Emit label for addr_base *)
+               (match sections.addr_base_label with
+                | Some label -> Printf.fprintf oc "%s:\n" label
+                | None -> ());
+               emit_section_bytes_with_both_relocs oc Arch.size_addr bytes relocs [] []
+           | None -> ());
           (* Optional sections *)
           (match sections.debug_line with
            | Some (bytes, relocs) ->
@@ -817,6 +827,16 @@ module Dwarf_helpers = struct
            | Some (bytes, str_relocs) ->
                output_string oc "\t.section .debug_str_offsets,\"\",@progbits\n";
                emit_section_bytes_with_both_relocs oc Arch.size_addr bytes [] [] str_relocs
+           | None -> ());
+          (* DWARF 5: .debug_addr section (address table) *)
+          (match sections.debug_addr with
+           | Some (bytes, relocs) ->
+               output_string oc "\t.section .debug_addr,\"\",@progbits\n";
+               (* Emit label for addr_base *)
+               (match sections.addr_base_label with
+                | Some label -> Printf.fprintf oc "%s:\n" label
+                | None -> ());
+               emit_section_bytes_with_both_relocs oc Arch.size_addr bytes relocs [] []
            | None -> ());
           (* Optional sections *)
           (match sections.debug_line with
