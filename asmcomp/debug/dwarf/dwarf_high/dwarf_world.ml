@@ -46,9 +46,17 @@ type t = {
 
   (* Target address size in bytes (4 for 32-bit, 8 for 64-bit) *)
   address_size : int;
+
+  (* Address table for DWARF 5 DW_FORM_addrx *)
+  mutable address_table : (Dwarf_value.t * int) list;  (* (address, index) pairs *)
+  mutable next_addr_index : int;
+
+  (* Label for __debug_addr section base *)
+  addr_base_label : string;
 }
 
 let line_table_label_counter = ref 0
+let addr_base_label_counter = ref 0
 
 let create ~producer ~comp_dir ~source_file ~language ~address_size () =
   let line_table = Line_number_table.create () in
@@ -56,6 +64,9 @@ let create ~producer ~comp_dir ~source_file ~language ~address_size () =
   (* Generate unique label for this CU's line table *)
   incr line_table_label_counter;
   let line_table_label = Printf.sprintf "debug_line_cu_%d" !line_table_label_counter in
+  (* Generate unique label for this CU's address table *)
+  incr addr_base_label_counter;
+  let addr_base_label = Printf.sprintf "debug_addr_cu_%d" !addr_base_label_counter in
   {
     producer;
     comp_dir;
@@ -69,7 +80,28 @@ let create ~producer ~comp_dir ~source_file ~language ~address_size () =
     line_number_table = line_table;
     line_table_label;
     address_size;
+    address_table = [];
+    next_addr_index = 0;
+    addr_base_label;
   }
+
+(* Address table management for DWARF 5 DW_FORM_addrx *)
+
+(* Add an address to the table, return its index *)
+let add_to_address_table t addr =
+  (* Check if address already in table *)
+  match List.find_opt (fun (a, _) -> a = addr) t.address_table with
+  | Some (_, idx) -> idx  (* Reuse existing index *)
+  | None ->
+      let idx = t.next_addr_index in
+      t.address_table <- (addr, idx) :: t.address_table;
+      t.next_addr_index <- idx + 1;
+      idx
+
+(* Get address table in order for emission *)
+let get_address_table t =
+  List.sort (fun (_, i1) (_, i2) -> compare i1 i2) t.address_table
+  |> List.map fst
 
 let create_cu_die t =
   let cu = Proto_die.create Dwarf_tag.DW_TAG_compile_unit in
@@ -94,10 +126,18 @@ let create_cu_die t =
   let cu = if List.length files > 0 then
     Proto_die.add_attribute cu {
       attr = DW_AT_stmt_list;
-      value = Label_sec_offset t.line_table_label;  (* Reference to line table label *)
+      value = Sec_offset 0;  (* Use offset 0 to avoid relocation issues *)
       form = DW_FORM_sec_offset;
     }
   else cu in
+  (* Add DW_AT_addr_base pointing to __debug_addr section.
+     Use constant offset 8 (header size) to avoid relocations.
+     Header = 4 bytes length + 2 bytes version + 1 byte addr_size + 1 byte segment_size *)
+  let cu = Proto_die.add_attribute cu {
+    attr = DW_AT_addr_base;
+    value = Sec_offset 8;  (* Addresses start after 8-byte header *)
+    form = DW_FORM_sec_offset;
+  } in
   Proto_die.set_has_children cu true
 
 let add_die t die =
@@ -419,6 +459,8 @@ type section_data = {
   line_table_label : string option;  (* Label for line table start *)
   debug_loc : bytes option;
   debug_ranges : bytes option;
+  debug_addr : (bytes * relocation list) option;  (* DWARF 5: address table with relocations *)
+  addr_base_label : string option;  (* Label for address table base *)
 }
 
 
@@ -429,8 +471,71 @@ let emit_debug_abbrev _t =
      offset 0 and find the same table structure. *)
   Standard_abbrevs.emit_standard_table ()
 
-let write_attribute_value buf address_size (value : Dwarf_value.t) (form : Dwarf_form.t) str_indices str_offsets relocs sec_offset_relocs str_relocs =
+(* Emit the __debug_addr section (DWARF 5) *)
+let emit_debug_addr t =
+  if t.next_addr_index = 0 then
+    None  (* No addresses - don't emit section *)
+  else
+    let buf = Buffer.create 1024 in
+    let relocs = ref [] in
+
+    (* Get addresses in index order *)
+    let addresses = get_address_table t in
+
+    (* Length placeholder - fill in later *)
+    let length_offset = Buffer.length buf in
+    Buffer.add_string buf "\x00\x00\x00\x00";  (* 32-bit length *)
+
+    let content_start = Buffer.length buf in
+
+    (* Version (2 bytes) *)
+    Buffer.add_string buf "\x05\x00";  (* DWARF 5 *)
+
+    (* Address size (1 byte) *)
+    Buffer.add_char buf (Char.chr t.address_size);
+
+    (* Segment selector size (1 byte) *)
+    Buffer.add_char buf '\x00';  (* No segments *)
+
+    (* Write addresses *)
+    List.iter (fun addr ->
+      match addr with
+      | Dwarf_value.Address value ->
+          (* Write concrete address *)
+          let bytes = Bytes.create t.address_size in
+          (match t.address_size with
+          | 8 -> Bytes.set_int64_le bytes 0 value  (* value is already int64 *)
+          | 4 -> Bytes.set_int32_le bytes 0 (Int64.to_int32 value)
+          | _ -> failwith "Unsupported address size");
+          Buffer.add_bytes buf bytes
+
+      | Dwarf_value.Label_address label ->
+          (* Mark for relocation *)
+          let offset = Buffer.length buf in
+          relocs := { offset; label } :: !relocs;
+          (* Write placeholder *)
+          Buffer.add_bytes buf (Bytes.create t.address_size)
+
+      | _ -> failwith "Non-address value in address table"
+    ) addresses;
+
+    (* Fill in length *)
+    let content_length = Buffer.length buf - content_start in
+    let length_bytes = Bytes.create 4 in
+    Bytes.set_int32_le length_bytes 0 (Int32.of_int content_length);
+    (* Update length field in buffer *)
+    let buf_bytes = Bytes.of_string (Buffer.contents buf) in
+    Bytes.blit length_bytes 0 buf_bytes length_offset 4;
+
+    Some (buf_bytes, List.rev !relocs)
+
+let write_attribute_value t buf address_size (value : Dwarf_value.t) (form : Dwarf_form.t) str_indices str_offsets relocs sec_offset_relocs str_relocs =
   match form, value with
+  | DW_FORM_addrx, (Address _ | Label_address _) ->
+      (* DWARF 5: Use address table index instead of direct address *)
+      let idx = add_to_address_table t value in
+      (* Write index as ULEB128 *)
+      Leb128.write_uleb128 buf idx
   | DW_FORM_addr, Address addr ->
       (* Address size from target architecture (4 for 32-bit, 8 for 64-bit) *)
       let bytes = Bytes.create address_size in
@@ -562,7 +667,7 @@ let build_abbrev_map cu_with_children =
   assign_codes cu_with_children;
   die_map
 
-let rec write_die buf address_size die die_map str_indices str_offsets relocs_ref sec_offset_relocs_ref str_relocs_ref =
+let rec write_die t buf address_size die die_map str_indices str_offsets relocs_ref sec_offset_relocs_ref str_relocs_ref =
   (* Look up abbreviation code for this DIE *)
   let abbrev_code =
     try Hashtbl.find die_map die
@@ -577,11 +682,11 @@ let rec write_die buf address_size die die_map str_indices str_offsets relocs_re
   Leb128.write_uleb128 buf abbrev_code;
   (* Write attribute values in the order they appear in the abbreviation *)
   List.iter (fun (attr : Proto_die.attribute) ->
-    write_attribute_value buf address_size attr.value attr.form str_indices str_offsets relocs_ref sec_offset_relocs_ref str_relocs_ref
+    write_attribute_value t buf address_size attr.value attr.form str_indices str_offsets relocs_ref sec_offset_relocs_ref str_relocs_ref
   ) (Proto_die.attributes die);
   (* Recursively write children *)
   List.iter (fun child ->
-    write_die buf address_size child die_map str_indices str_offsets relocs_ref sec_offset_relocs_ref str_relocs_ref
+    write_die t buf address_size child die_map str_indices str_offsets relocs_ref sec_offset_relocs_ref str_relocs_ref
   ) (Proto_die.children die);
   (* Write null DIE to terminate children list if this DIE has children *)
   if Proto_die.has_children die && List.length (Proto_die.children die) > 0 then
@@ -606,7 +711,7 @@ let emit_debug_info_with_str_indices t str_indices str_offsets =
   let die_buf = Buffer.create 2048 in
 
   (* Write CU DIE and all its children with proper abbrev codes *)
-  write_die die_buf t.address_size cu_with_children die_map str_indices str_offsets relocs_ref sec_offset_relocs_ref str_relocs_ref;
+  write_die t die_buf t.address_size cu_with_children die_map str_indices str_offsets relocs_ref sec_offset_relocs_ref str_relocs_ref;
 
   let die_bytes = Buffer.contents die_buf in
   let die_length = String.length die_bytes in
@@ -676,6 +781,8 @@ let emit (t : t) : section_data =
     debug_ranges =
       if Range_list_table.is_empty t.range_lists then None
       else Some (Bytes.create 0); (* Placeholder *)
+    debug_addr = emit_debug_addr t;  (* DWARF 5: address table *)
+    addr_base_label = (match emit_debug_addr t with Some _ -> Some t.addr_base_label | None -> None);
   }
 
 let print ppf t =

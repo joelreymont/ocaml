@@ -44,6 +44,7 @@ let standard_table : standard_entry list = [
       (DW_AT_comp_dir, DW_FORM_string);
       (DW_AT_language, DW_FORM_data2);   (* 2 bytes for vendor extensions like 0x8001 *)
       (DW_AT_stmt_list, DW_FORM_sec_offset);  (* Pointer to line number program *)
+      (DW_AT_addr_base, DW_FORM_sec_offset);  (* DWARF 5: Pointer to address table *)
     ];
   };
 
@@ -57,6 +58,7 @@ let standard_table : standard_entry list = [
       (DW_AT_producer, DW_FORM_string);
       (DW_AT_comp_dir, DW_FORM_string);
       (DW_AT_language, DW_FORM_data2);   (* 2 bytes for vendor extensions like 0x8001 *)
+      (DW_AT_addr_base, DW_FORM_sec_offset);  (* DWARF 5: Pointer to address table *)
     ];
   };
 
@@ -68,8 +70,8 @@ let standard_table : standard_entry list = [
     attributes = [
       (DW_AT_name, DW_FORM_string);      (* DWARF 5: inline string *)
       (DW_AT_linkage_name, DW_FORM_string); (* Full mangled name for linking *)
-      (DW_AT_low_pc, DW_FORM_addr);
-      (DW_AT_high_pc, DW_FORM_addr);
+      (DW_AT_low_pc, DW_FORM_addrx);     (* DWARF 5: address table index *)
+      (DW_AT_high_pc, DW_FORM_addrx);    (* DWARF 5: address table index *)
       (DW_AT_external, DW_FORM_flag_present);
       (DW_AT_decl_file, DW_FORM_data1);  (* Link to source file in line table *)
       (DW_AT_frame_base, DW_FORM_exprloc);  (* Frame base for DW_OP_fbreg *)
@@ -84,8 +86,8 @@ let standard_table : standard_entry list = [
     attributes = [
       (DW_AT_name, DW_FORM_string);      (* DWARF 5: inline string *)
       (DW_AT_linkage_name, DW_FORM_string); (* Full mangled name for linking *)
-      (DW_AT_low_pc, DW_FORM_addr);
-      (DW_AT_high_pc, DW_FORM_addr);
+      (DW_AT_low_pc, DW_FORM_addrx);     (* DWARF 5: address table index *)
+      (DW_AT_high_pc, DW_FORM_addrx);    (* DWARF 5: address table index *)
       (DW_AT_external, DW_FORM_flag_present);
       (DW_AT_decl_file, DW_FORM_data1);  (* Link to source file in line table *)
       (DW_AT_frame_base, DW_FORM_exprloc);  (* Frame base for DW_OP_fbreg *)
@@ -169,8 +171,8 @@ let standard_table : standard_entry list = [
     attributes = [
       (DW_AT_name, DW_FORM_string);      (* DWARF 5: inline string *)
       (DW_AT_type, DW_FORM_ref4);
-      (DW_AT_low_pc, DW_FORM_addr);
-      (DW_AT_high_pc, DW_FORM_addr);
+      (DW_AT_low_pc, DW_FORM_addrx);     (* DWARF 5: address table index *)
+      (DW_AT_high_pc, DW_FORM_addrx);    (* DWARF 5: address table index *)
       (DW_AT_external, DW_FORM_flag_present);
       (DW_AT_decl_file, DW_FORM_data1);  (* Link to source file in line table *)
       (DW_AT_frame_base, DW_FORM_exprloc);  (* Frame base for DW_OP_fbreg *)
@@ -183,8 +185,8 @@ let standard_table : standard_entry list = [
     tag = DW_TAG_lexical_block;
     has_children = true;
     attributes = [
-      (DW_AT_low_pc, DW_FORM_addr);
-      (DW_AT_high_pc, DW_FORM_addr);
+      (DW_AT_low_pc, DW_FORM_addrx);     (* DWARF 5: address table index *)
+      (DW_AT_high_pc, DW_FORM_addrx);    (* DWARF 5: address table index *)
     ];
   };
 
@@ -194,8 +196,8 @@ let standard_table : standard_entry list = [
     tag = DW_TAG_lexical_block;
     has_children = false;
     attributes = [
-      (DW_AT_low_pc, DW_FORM_addr);
-      (DW_AT_high_pc, DW_FORM_addr);
+      (DW_AT_low_pc, DW_FORM_addrx);     (* DWARF 5: address table index *)
+      (DW_AT_high_pc, DW_FORM_addrx);    (* DWARF 5: address table index *)
     ];
   };
 

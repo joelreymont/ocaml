@@ -126,12 +126,12 @@ let with_pc_range t ~start ~end_ =
   let t = add_attribute t {
     attr = DW_AT_low_pc;
     value = addr_value start;
-    form = DW_FORM_addr;
+    form = DW_FORM_addrx;  (* DWARF 5: address table index *)
   } in
   add_attribute t {
     attr = DW_AT_high_pc;
     value = addr_value end_;
-    form = DW_FORM_addr;
+    form = DW_FORM_addrx;  (* DWARF 5: address table index *)
   }
 
 let with_const_value t value =
@@ -287,6 +287,7 @@ and calculate_attribute_size attr =
   | Dwarf_form.DW_FORM_data4 -> 4
   | Dwarf_form.DW_FORM_data8 -> 8
   | Dwarf_form.DW_FORM_addr -> 8  (* Depends on address size, assuming 64-bit *)
+  | Dwarf_form.DW_FORM_addrx -> 1  (* ULEB128 index, typically 1 byte for small indices *)
   | Dwarf_form.DW_FORM_ref1 -> 1
   | Dwarf_form.DW_FORM_ref2 -> 2
   | Dwarf_form.DW_FORM_ref4 -> 4

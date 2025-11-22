@@ -131,6 +131,8 @@ type section_data = {
   line_table_label : string option;  (* Label for line table start *)
   debug_loc : bytes option;
   debug_ranges : bytes option;
+  debug_addr : (bytes * relocation list) option;  (* DWARF 5: address table with relocations *)
+  addr_base_label : string option;  (* Label for address table base *)
 }
 
 (** Generate all DWARF section data *)
