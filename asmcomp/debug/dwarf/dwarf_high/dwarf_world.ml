@@ -126,16 +126,15 @@ let create_cu_die t =
   let cu = if List.length files > 0 then
     Proto_die.add_attribute cu {
       attr = DW_AT_stmt_list;
-      value = Sec_offset 0;  (* Use offset 0 to avoid relocation issues *)
+      value = Label_sec_offset t.line_table_label;  (* Use per-CU label for multi-object linking *)
       form = DW_FORM_sec_offset;
     }
   else cu in
-  (* Add DW_AT_addr_base pointing to __debug_addr section.
-     Use constant offset 8 (header size) to avoid relocations.
-     Header = 4 bytes length + 2 bytes version + 1 byte addr_size + 1 byte segment_size *)
+  (* Add DW_AT_addr_base pointing to this CU's address table base.
+     Use label reference for proper multi-CU linking. *)
   let cu = Proto_die.add_attribute cu {
     attr = DW_AT_addr_base;
-    value = Sec_offset 8;  (* Addresses start after 8-byte header *)
+    value = Label_sec_offset t.addr_base_label;  (* Use per-CU label *)
     form = DW_FORM_sec_offset;
   } in
   Proto_die.set_has_children cu true
@@ -328,7 +327,8 @@ let calculate_current_offset t =
     (String.length t.producer + 1) +
     (String.length t.comp_dir + 1) +
     2 +  (* language *)
-    (if has_line_data then 4 else 0)
+    (if has_line_data then 4 else 0) +  (* DW_AT_stmt_list *)
+    4  (* DW_AT_addr_base - always present *)
   in
 
   (* Add sizes of all existing DIEs (use actual size calculation) *)
@@ -359,11 +359,6 @@ let add_tree_variant_type t ~type_name =
      calculate its offset first, then use that for field references *)
   let tree_offset = calculate_current_offset t in
 
-  (* FIXME: There's a 4-byte discrepancy in the offset calculation.
-     This appears to be related to how DIE sizes are calculated vs. actual emission.
-     For now, add 4 bytes as an empirical correction. *)
-  let tree_offset = tree_offset + 4 in
-
   (* Generate tree variant with self-references *)
   let variant_die = Variant_type.generate_tree_variant
     ~type_name
@@ -383,9 +378,6 @@ let add_list_variant_type t ~type_name =
 
   (* The list type will reference itself (recursive type) *)
   let list_offset = calculate_current_offset t in
-
-  (* Apply same empirical 4-byte correction as tree type *)
-  let list_offset = list_offset + 4 in
 
   (* Generate list variant with self-references *)
   let variant_die = Variant_type.generate_list_variant
@@ -780,9 +772,16 @@ let emit (t : t) : section_data =
       else Some (Bytes.create 0); (* Placeholder *)
     debug_ranges =
       if Range_list_table.is_empty t.range_lists then None
-      else Some (Bytes.create 0); (* Placeholder *)
-    debug_addr = emit_debug_addr t;  (* DWARF 5: address table *)
-    addr_base_label = (match emit_debug_addr t with Some _ -> Some t.addr_base_label | None -> None);
+      else Some (Bytes.create 0); (* Placeholder *) in
+  (* Emit debug_addr once and use result for both fields *)
+  let addr_result = emit_debug_addr t in
+  {
+    sections with
+    debug_addr = addr_result;
+    addr_base_label =
+      (match addr_result with
+       | Some _ -> Some t.addr_base_label
+       | None -> None);
   }
 
 let print ppf t =

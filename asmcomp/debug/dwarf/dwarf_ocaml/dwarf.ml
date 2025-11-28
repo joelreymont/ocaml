@@ -93,15 +93,23 @@ let finalize_current_function t =
            (* No namespace - add function directly to world *)
            Dwarf_world.add_die t.world func_die
        | Some ns_name ->
-           (* Add function to namespace DIE *)
+           (* Add function to namespace DIE in cache - accumulate all functions *)
            let ns_die = get_or_create_namespace_die t ns_name in
            let ns_die = Proto_die.add_child ns_die func_die in
            (* Update namespace DIE in cache *)
-           Hashtbl.replace t.namespace_dies ns_name ns_die;
-           (* Add namespace DIE to world (will be deduplicated if already added) *)
-           Dwarf_world.add_die t.world ns_die);
+           Hashtbl.replace t.namespace_dies ns_name ns_die);
       t.current_function <- None;
       t.scope_stack <- []
+
+let clear_namespace t =
+  (* Clear the current namespace - call this for functions without mangled names *)
+  t.current_namespace <- None
+
+let finalize_namespaces t =
+  (* Add all namespace DIEs to the world - call this at emit time *)
+  Hashtbl.iter (fun ns_name ns_die ->
+    Dwarf_world.add_die t.world ns_die
+  ) t.namespace_dies
 
 (** Create a DWARF expression for the frame base (frame pointer register).
     Returns a bytes buffer containing the appropriate DW_OP_reg* opcode.
@@ -279,6 +287,8 @@ let set_namespace t namespace_name =
 let emit t =
   (* Finalize any pending function *)
   finalize_current_function t;
+  (* Add all namespace DIEs to the world *)
+  finalize_namespaces t;
 
   Dwarf_world.emit t.world
 

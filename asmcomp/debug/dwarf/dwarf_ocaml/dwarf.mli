@@ -137,6 +137,15 @@ val set_namespace :
   string ->
   unit
 
+(** Clear the current namespace.
+
+    Call this for functions that don't have mangled names to prevent
+    them from inheriting the previous module's namespace.
+*)
+val clear_namespace :
+  t ->
+  unit
+
 (** Emit all DWARF sections.
 
     Returns section data that can be written to the object file.
