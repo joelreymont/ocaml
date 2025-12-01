@@ -39,8 +39,12 @@ class OCamlValueDecoder:
 
     @staticmethod
     def int_val(value: int) -> int:
-        """Extract integer from tagged immediate."""
-        return value >> 1
+        """Extract signed integer from tagged immediate (63-bit payload)."""
+        shifted = value >> 1
+        # Sign-extend 63-bit to Python int
+        if shifted & (1 << 62):
+            shifted -= 1 << 63
+        return shifted
 
     @staticmethod
     def block_addr(value: int) -> int:
@@ -90,10 +94,43 @@ class TreeVisualizer:
         Node:  block with tag 0, size 3 (value, left, right)
     """
 
-    def __init__(self, max_depth: int = 10):
+    def __init__(self, max_depth: int = 10, base_addr: int = 0):
         self.max_depth = max_depth
         self.visited = set()  # Track visited block addresses for cycle detection
         self.decoder = OCamlValueDecoder()
+        self.base_addr = base_addr
+
+    def _fix_pointer(self, value: int) -> int:
+        if self.decoder.is_int(value) or value == 0:
+            return value
+        masked = value & 0x0000FFFFFFFFFFFF
+        if self.base_addr and masked < self.base_addr:
+            masked |= self.base_addr
+        return masked
+
+    def _normalize_block_addr(self, process: lldb.SBProcess, block_addr: int) -> int:
+        def plausible(hdr_tuple):
+            if not hdr_tuple:
+                return False
+            size, tag, _color = hdr_tuple
+            return size > 0 and size < 0x10000 and tag <= 0xFC
+
+        hdr = self.decoder.read_header(process, block_addr)
+        if plausible(hdr):
+            return block_addr
+
+        for delta in (8, 16, 24, 32):
+            for candidate in (block_addr - delta, block_addr + delta):
+                hdr = self.decoder.read_header(process, candidate)
+                if not plausible(hdr):
+                    continue
+                size, _tag, _color = hdr
+                payload_start = candidate + 8
+                payload_end = payload_start + (size * 8)
+                if payload_start <= block_addr < payload_end or block_addr + 8 == candidate:
+                    return candidate
+
+        return block_addr
 
     def format_tree(self, value: int, process: lldb.SBProcess,
                    depth: int = 0, indent: int = 0) -> str:
@@ -108,6 +145,8 @@ class TreeVisualizer:
         Returns:
             Formatted string representation
         """
+        value = self._fix_pointer(value)
+
         # Check depth limit
         if depth > self.max_depth:
             return " " * indent + "... (max depth reached)"
@@ -122,7 +161,7 @@ class TreeVisualizer:
 
         # Handle blocks (Node)
         if self.decoder.is_block(value):
-            block_addr = self.decoder.block_addr(value)
+            block_addr = self._normalize_block_addr(process, self.decoder.block_addr(value))
 
             # Cycle detection
             if block_addr in self.visited:
@@ -141,9 +180,9 @@ class TreeVisualizer:
                 # Check if this looks like a Node (tag 0, size 3)
                 if tag == 0 and size == 3:
                     # Read tree fields: value, left, right
-                    node_value = self.decoder.read_field(process, block_addr, 0)
-                    left_tree = self.decoder.read_field(process, block_addr, 1)
-                    right_tree = self.decoder.read_field(process, block_addr, 2)
+                    node_value = self._fix_pointer(self.decoder.read_field(process, block_addr, 0))
+                    left_tree = self._fix_pointer(self.decoder.read_field(process, block_addr, 1))
+                    right_tree = self._fix_pointer(self.decoder.read_field(process, block_addr, 2))
 
                     if node_value is None or left_tree is None or right_tree is None:
                         return " " * indent + "<error reading fields>"
@@ -181,12 +220,13 @@ class TreeVisualizer:
 
         Example: Node(5, Node(3, Empty, Empty), Node(7, Empty, Empty))
         """
+        value = self._fix_pointer(value)
         if self.decoder.is_int(value):
             int_val = self.decoder.int_val(value)
             return "Empty" if int_val == 0 else f"Leaf({int_val})"
 
         if self.decoder.is_block(value):
-            block_addr = self.decoder.block_addr(value)
+            block_addr = self._normalize_block_addr(process, self.decoder.block_addr(value))
 
             if block_addr in self.visited:
                 return "<cycle>"
@@ -201,9 +241,9 @@ class TreeVisualizer:
                 size, tag, color = header_info
 
                 if tag == 0 and size == 3:
-                    node_value = self.decoder.read_field(process, block_addr, 0)
-                    left_tree = self.decoder.read_field(process, block_addr, 1)
-                    right_tree = self.decoder.read_field(process, block_addr, 2)
+                    node_value = self._fix_pointer(self.decoder.read_field(process, block_addr, 0))
+                    left_tree = self._fix_pointer(self.decoder.read_field(process, block_addr, 1))
+                    right_tree = self._fix_pointer(self.decoder.read_field(process, block_addr, 2))
 
                     if node_value is None or left_tree is None or right_tree is None:
                         return "<error>"

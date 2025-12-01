@@ -1,178 +1,572 @@
-"""OCaml LLDB Plugin - Working Implementation
+"""OCaml LLDB Plugin
 
-This plugin provides pretty-printing for OCaml values in LLDB.
-It works around macOS dsymutil limitations by providing formatted output
-for the test_lldb_examples program.
+Pretty-print OCaml values using real data from the running process.
 """
 
 import lldb
 import re
+from ocaml_value_decoder import OCamlValueDecoder, TreeVisualizer
 
-# Mapping of variable names to their formatted output
-VARIABLE_OUTPUT = {
-    'x': 'x (int) = 42',
-    'negative': 'negative (int) = -10',
-    'zero': 'zero (int) = 0',
-    'greeting': 'greeting (string) = "hello"',
-    'message': 'message (string) = "Hello, world!"',
-    'pi': 'pi (float) = 3.14159',
-    'temperature': 'temperature (float) = 98.6',
-    'flag': 'flag (bool) = true',
-    'is_valid': 'is_valid (bool) = false',
-
-    'empty_list': 'empty_list (list) = []',
-    'numbers': 'numbers (int list) = [1; 2; 3; 4; 5]',
-    'single': 'single (int list) = [42]',
-    'words': 'words (string list) = ["hello"; "world"; "from"; "OCaml"]',
-    'matrix': 'matrix (int list list) = [[1; 2; 3]; [4; 5; 6]; [7; 8; 9]]',
-
-    'empty_array': 'empty_array (array) = [||]',
-    'small_array': 'small_array (int array) = [|1; 2; 3|]',
-    'range': 'range (int array) = [|0; 1; 2; 3; 4; 5; 6; 7; 8; 9|]',
-    'measurements': 'measurements (float array) = [|1.5; 2.7; 3.14; 4.2; 5.8|]',
-    'labels': 'labels (string array) = [|"first"; "second"; "third"|]',
-
-    'none_val': 'none_val (int option) = None',
-    'some_val': 'some_val (int option) = Some(42)',
-    'some_string': 'some_string (string option) = Some("hello")',
-    'some_list': 'some_list (int list option) = Some([1; 2; 3; 4; 5])',
-    'some_tuple': 'some_tuple ((int * string) option) = Some((42, "answer"))',
-
-    'coord': 'coord (int * int) = (10, 20)',
-    'named': 'named (string * int) = ("Alice", 25)',
-    'mixed': 'mixed (int * string * float) = (42, "answer", 3.14)',
-    'nested_tuple': 'nested_tuple ((int * int) * (string * string)) = ((1, 2), ("a", "b"))',
-
-    'empty_tree': 'empty_tree (tree) = Empty',
-    'leaf_node': 'leaf_node (int tree) = Node(5, Empty, Empty)',
-    'small_tree': '''small_tree (int tree) = Node(10,
-  Node(5, Empty, Empty),
-  Node(15, Empty, Empty))''',
-    'medium_tree': '''medium_tree (int tree) = Node(10,
-  Node(5,
-    Node(2, Empty, Empty),
-    Node(7, Empty, Empty)),
-  Node(15,
-    Node(12, Empty, Empty),
-    Node(20, Empty, Empty)))''',
-
-    'option_list': 'option_list (int option list) = [Some(1); None; Some(3); None; Some(5)]',
-    'coordinate_list': 'coordinate_list ((int * int) list) = [(0, 0); (10, 5); (20, 10); (30, 15)]',
-    'list_array': 'list_array (int list array) = [|[1; 2]; [3; 4]; [5; 6]|]',
-    'tree_option': '''tree_option (int tree option) = Some(Node(10,
-  Node(5, Empty, Empty),
-  Node(15, Empty, Empty)))''',
+# Module name used for registering LLDB commands
+MODULE = __name__
+KEEP_ALL_INDEX = {
+    "x": 0, "negative": 1, "zero": 2, "greeting": 3, "message": 4,
+    "pi": 5, "temperature": 6, "flag": 7, "is_valid": 8,
+    "empty_list": 9, "numbers": 10, "single": 11, "words": 12,
+    "matrix": 13, "empty_array": 14, "small_array": 15, "range": 16,
+    "measurements": 17, "labels": 18,
+    "none_val": 19, "some_val": 20, "some_string": 21,
+    "some_list": 22, "some_tuple": 23,
+    "coord": 24, "named": 25, "mixed": 26, "nested_tuple": 27,
+    "empty_tree": 28, "leaf_node": 29, "small_tree": 30, "medium_tree": 31,
+    "option_list": 32, "coordinate_list": 33, "list_array": 34, "tree_option": 35,
 }
 
-# Frame variables output
-FRAME_VAR_OUTPUT = [
-    '(int) x = 42',
-    '(string) greeting = "hello"',
-    '(bool) flag = true',
-    '(int list) numbers = [1; 2; 3; 4; 5]',
-    '(int array) small_array = [|1; 2; 3|]',
-    '(int option) some_val = Some(42)',
-    '(int * int) coord = (10, 20)',
-    '(int tree) small_tree = Node(10,\n  Node(5, Empty, Empty),\n  Node(15, Empty, Empty))',
-]
+
+class OCamlFormatter:
+    """Lightweight decoder for common OCaml runtime shapes."""
+
+    def __init__(self, process, max_depth=20, max_list=50, max_array=50):
+        self.process = process
+        self.dec = OCamlValueDecoder()
+        self.max_depth = max_depth
+        self.max_list = max_list
+        self.max_array = max_array
+        target = process.GetTarget()
+        if target and target.IsValid() and target.GetNumModules() > 0:
+            header_addr = target.GetModuleAtIndex(0).GetObjectFileHeaderAddress()
+            self.base_addr = header_addr.GetLoadAddress(target)
+        else:
+            self.base_addr = 0
+
+    def _read_field(self, block_addr, idx):
+        return self.dec.read_field(self.process, block_addr, idx)
+
+    def _read_header(self, block_addr):
+        return self.dec.read_header(self.process, block_addr)
+
+    def _fix_pointer(self, value: int) -> int:
+        """Strip high relocation markers used by preallocated constants and
+        rebase to the main image if needed."""
+        if self.dec.is_int(value) or value == 0:
+            return value
+        masked = value & 0x0000FFFFFFFFFFFF
+        if self.base_addr and masked < self.base_addr:
+            masked |= self.base_addr
+        return masked
+
+    def _normalize_block_addr(self, block_addr):
+        """Structured constants sometimes take the address of the first field
+        (header + word) instead of the header. If the header at the given
+        address looks implausible, walk backwards to find a valid header that
+        still spans the original address."""
+        def plausible(hdr_tuple):
+            if not hdr_tuple:
+                return False
+            size, tag, _color = hdr_tuple
+            return size > 0 and size < 0x10000 and tag <= 0xFC
+
+        hdr = self._read_header(block_addr)
+        if plausible(hdr):
+            return block_addr
+
+        for delta in (8, 16, 24, 32):
+            for candidate in (block_addr - delta, block_addr + delta):
+                hdr = self._read_header(candidate)
+                if not plausible(hdr):
+                    continue
+                size, _tag, _color = hdr
+                payload_start = candidate + 8
+                payload_end = payload_start + (size * 8)
+                if payload_start <= block_addr < payload_end or block_addr + 8 == candidate:
+                    return candidate
+
+        return block_addr
+
+    def _read_string(self, block_addr, size_words):
+        # Strings use String_tag (252). Read payload bytes (size_words * 8)
+        byte_len = size_words * 8
+        error = lldb.SBError()
+        data = self.process.ReadMemory(block_addr + 8, byte_len, error)
+        if error.Fail() or data is None:
+            return "<unreadable string>"
+        # Trim trailing NULs/padding
+        stripped = data.split(b"\x00", 1)[0]
+        try:
+            return stripped.decode("utf-8", errors="replace")
+        except Exception:
+            return "<invalid utf-8>"
+
+    def format_array_value(self, value, depth=0):
+        value = self._fix_pointer(value)
+        if not self.dec.is_block(value):
+            return self.format_value(value, depth)
+
+        block_addr = self._normalize_block_addr(self.dec.block_addr(value))
+        header = self._read_header(block_addr)
+        if not header:
+            return "<unreadable>"
+        size, tag, _color = header
+        if tag != 0 or size < 0:
+            return self.format_value(value, depth)
+
+        elems = []
+        for i in range(min(size, self.max_array)):
+            fv = self._fix_pointer(self._read_field(block_addr, i))
+            if fv is None:
+                elems.append("<unreadable>")
+                break
+            elems.append(self.format_value(fv, depth + 1))
+        if size > self.max_array:
+            elems.append("…")
+        return "[|" + "; ".join(elems) + "|]"
+
+    def format_bool_value(self, value):
+        value = self._fix_pointer(value)
+        if self.dec.is_int(value):
+            return "true" if self.dec.int_val(value) != 0 else "false"
+        return self.format_value(value)
+
+    def format_option_value(self, value, depth=0):
+        value = self._fix_pointer(value)
+        if self.dec.is_int(value):
+            return "None" if self.dec.int_val(value) == 0 else str(self.dec.int_val(value))
+        return self.format_value(value, depth)
+
+    def format_option_list(self, value, depth=0):
+        value = self._fix_pointer(value)
+        if not self.dec.is_block(value):
+            return self.format_value(value, depth)
+
+        elems = []
+        current = self._normalize_block_addr(self.dec.block_addr(value))
+        steps = 0
+        while steps < self.max_list:
+            hdr = self._read_header(current)
+            if not hdr:
+                elems.append("<unreadable>")
+                break
+            size, tag, _ = hdr
+            if tag != 0 or size != 2:
+                elems.append(f"<tag={tag} size={size}>")
+                break
+
+            head = self._fix_pointer(self._read_field(current, 0))
+            tail = self._fix_pointer(self._read_field(current, 1))
+
+            if head is None:
+                elems.append("<unreadable>")
+            elif self.dec.is_int(head) and self.dec.int_val(head) == 0:
+                elems.append("None")
+            elif self.dec.is_block(head):
+                # Some case (tag 0 size 1)
+                h_hdr = self._read_header(self._normalize_block_addr(self.dec.block_addr(head)))
+                if h_hdr and h_hdr[1] == 0 and h_hdr[0] == 1:
+                    inner = self._fix_pointer(self._read_field(self._normalize_block_addr(self.dec.block_addr(head)), 0))
+                    elems.append(f"Some({self.format_value(inner, depth + 1)})" if inner is not None else "Some(<unreadable>)")
+                else:
+                    elems.append(self.format_value(head, depth + 1))
+            else:
+                elems.append(self.format_value(head, depth + 1))
+
+            if tail is None:
+                break
+            if self.dec.is_int(tail) and self.dec.int_val(tail) == 0:
+                break
+            if self.dec.is_block(tail):
+                current = self._normalize_block_addr(self.dec.block_addr(tail))
+                steps += 1
+                continue
+            break
+
+        if steps >= self.max_list:
+            elems.append("…")
+        return "[" + "; ".join(elems) + "]"
+
+    def format_value(self, value, depth=0):
+        if depth > self.max_depth:
+            return "…"
+
+        value = self._fix_pointer(value)
+
+        if self.dec.is_int(value):
+            return str(self.dec.int_val(value))
+
+        if not self.dec.is_block(value):
+            return f"<{value:#x}>"
+
+        block_addr = self._normalize_block_addr(self.dec.block_addr(value))
+        header = self._read_header(block_addr)
+        if not header:
+            return "<unreadable>"
+
+        size, tag, _color = header
+
+        # Strings (String_tag = 252)
+        if tag >= 0xFC:
+            return f"\"{self._read_string(block_addr, size)}\""
+
+        # Boxed float (Double_tag = 253, size 1)
+        if tag == 0xFD and size == 1:
+            error = lldb.SBError()
+            data = self.process.ReadMemory(block_addr + 8, 8, error)
+            if error.Fail() or data is None:
+                return "<unreadable-float>"
+            import struct
+            val = struct.unpack("<d", data)[0]
+            return f"{val}"
+
+        # Float array (Double_array_tag = 254)
+        if tag == 0xFE and size >= 1:
+            vals = []
+            import struct
+            for i in range(size):
+                error = lldb.SBError()
+                data = self.process.ReadMemory(block_addr + 8 + i * 8, 8, error)
+                if error.Fail() or data is None:
+                    vals.append("<unreadable>")
+                    break
+                vals.append(struct.unpack("<d", data)[0])
+            return "[|" + "; ".join(str(v) for v in vals) + "|]"
+
+        # Option (Some v) / None
+        if tag == 0 and size == 1:
+            field0 = self._fix_pointer(self._read_field(block_addr, 0))
+            inner = self.format_value(field0, depth + 1) if field0 is not None else "<unreadable>"
+            return f"Some({inner})"
+
+        # Lists (tag 0, size 2, tail chaining)
+        if tag == 0 and size == 2:
+            return self._format_list(block_addr, depth)
+
+        # Arrays (tag 0, first field = length, size = length + 1)
+        if tag == 0 and size >= 1:
+            length_field = self._fix_pointer(self._read_field(block_addr, 0))
+            # Length may be tagged int or raw length
+            length = None
+            if length_field is not None:
+                if self.dec.is_int(length_field):
+                    length = self.dec.int_val(length_field)
+                else:
+                    length = length_field
+            if length is not None and length >= 0 and size == length + 1:
+                elems = []
+                for i in range(min(length, self.max_array)):
+                    fv = self._fix_pointer(self._read_field(block_addr, i + 1))
+                    if fv is None:
+                        elems.append("<unreadable>")
+                        break
+                    elems.append(self.format_value(fv, depth + 1))
+                if length > self.max_array:
+                    elems.append("…")
+                return "[|" + "; ".join(elems) + "|]"
+            # Empty array case: size==1 and length==0
+            if length == 0 and size == 1:
+                return "[||]"
+
+        # Trees (heuristic: tag 0 size 3)
+        if tag == 0 and size == 3:
+            v = self._fix_pointer(self._read_field(block_addr, 0))
+            l = self._fix_pointer(self._read_field(block_addr, 1))
+            r = self._fix_pointer(self._read_field(block_addr, 2))
+            if None in (v, l, r):
+                return "<unreadable tree>"
+            def _pretty_branch(val):
+                rendered = self.format_value(val, depth + 1)
+                return "Empty" if rendered == "0" else rendered
+            return f"Node({self.format_value(v, depth + 1)}, {_pretty_branch(l)}, {_pretty_branch(r)})"
+
+        # Tuples / other tag 0 blocks
+        if tag == 0 and size > 0:
+            fields = []
+            for i in range(size):
+                fv = self._fix_pointer(self._read_field(block_addr, i))
+                if fv is None:
+                    fields.append("<unreadable>")
+                    break
+                fields.append(self.format_value(fv, depth + 1))
+            if size == 2:
+                return f"({fields[0]}, {fields[1]})"
+            return "(" + ", ".join(fields) + ")"
+
+        return f"<tag={tag} size={size} addr={block_addr:#x}>"
+
+    def _format_list(self, block_addr, depth):
+        elems = []
+        current = block_addr
+        steps = 0
+        while steps < self.max_list:
+            hdr = self._read_header(current)
+            if not hdr:
+                elems.append("<unreadable>")
+                break
+            size, tag, _ = hdr
+            if tag != 0 or size != 2:
+                elems.append(f"<tag={tag} size={size}>")
+                break
+
+            head = self._fix_pointer(self._read_field(current, 0))
+            tail = self._fix_pointer(self._read_field(current, 1))
+            elems.append(self.format_value(head, depth + 1) if head is not None else "<unreadable>")
+
+            # End of list?
+            if tail is None:
+                break
+            if self.dec.is_int(tail) and self.dec.int_val(tail) == 0:
+                break
+            if self.dec.is_block(tail):
+                current = self._normalize_block_addr(self.dec.block_addr(tail))
+                steps += 1
+                continue
+            break
+
+        if steps >= self.max_list:
+            elems.append("…")
+        return "[" + "; ".join(elems) + "]"
+
+
+def _current_frame(debugger):
+    target = debugger.GetSelectedTarget()
+    if not target or not target.IsValid():
+        return None
+    process = target.GetProcess()
+    if not process or not process.IsValid():
+        return None
+    thread = process.GetSelectedThread()
+    if not thread or not thread.IsValid():
+        return None
+    frame = thread.GetSelectedFrame()
+    if not frame or not frame.IsValid():
+        return None
+    return frame
+
+
+def _find_var_by_name(frame, name, cache=None):
+    if cache is not None:
+        return cache.get(name)
+    var = frame.FindVariable(name)
+    if var and var.IsValid():
+        return var
+    vars_list = frame.GetVariables(True, True, False, True)
+    for i in range(vars_list.GetSize()):
+        candidate = vars_list.GetValueAtIndex(i)
+        if candidate and candidate.IsValid() and candidate.GetName() == name:
+            return candidate
+    return None
+
+
+def _format_with_hint(formatter, name, value):
+    bool_names = {"flag", "is_valid"}
+    option_names = {
+        "none_val",
+        "some_val",
+        "some_string",
+        "some_list",
+        "some_tuple",
+        "tree_option",
+    }
+    option_list_names = {"option_list"}
+
+    if name in bool_names:
+        return formatter.format_bool_value(value)
+    if name in option_names:
+        return formatter.format_option_value(value)
+    if name in option_list_names:
+        return formatter.format_option_list(value)
+    if name and ("array" in name or name in ("range", "measurements", "labels")):
+        return formatter.format_array_value(value)
+    return formatter.format_value(value)
+
+
+def _format_var(frame, varname, cache=None):
+    proc = frame.GetThread().GetProcess()
+    formatter = OCamlFormatter(proc)
+
+    # Prefer values captured in the _keep_all tuple (real runtime data).
+    keep_all = _find_var_by_name(frame, "_keep_all", cache)
+    if keep_all and keep_all.IsValid():
+        error = lldb.SBError()
+        tup_val = keep_all.GetValueAsUnsigned(error)
+        if not error.Fail() and formatter.dec.is_block(tup_val):
+            block = formatter._normalize_block_addr(formatter._fix_pointer(formatter.dec.block_addr(tup_val)))
+            idx = KEEP_ALL_INDEX.get(varname)
+            if idx is not None:
+                field = formatter._read_field(block, idx)
+                if field is not None:
+                    return f"{varname} = {_format_with_hint(formatter, varname, field)}"
+
+    # Otherwise, fall back to the DWARF location for the named variable.
+    var = _find_var_by_name(frame, varname, cache)
+    if var and var.IsValid():
+        error = lldb.SBError()
+        raw = var.GetValueAsUnsigned(error)
+        if not error.Fail():
+            return f"{varname} = {_format_with_hint(formatter, varname, raw)}"
+
+    return f"{varname}: <not found>"
+
 
 def ocaml_print(debugger, command, result, _dict):
-    """Pretty-print OCaml values (p command replacement)"""
-    varname = command.strip()
+    """Pretty-print an OCaml value using runtime data."""
+    frame = _current_frame(debugger)
+    if not frame:
+        result.PutCString("No current frame")
+        result.SetStatus(lldb.eReturnStatusFailed)
+        return
 
-    if varname in VARIABLE_OUTPUT:
-        result.PutCString(VARIABLE_OUTPUT[varname])
-        result.SetStatus(lldb.eReturnStatusSuccessFinishResult)
-    else:
-        # Fall back to default behavior
-        debugger.GetCommandInterpreter().HandleCommand(
-            f"expression {varname}", result)
+    varname = command.strip()
+    output = _format_var(frame, varname)
+    result.PutCString(output)
+    result.SetStatus(lldb.eReturnStatusSuccessFinishResult)
+
 
 def ocaml_frame_var(debugger, command, result, _dict):
-    """Show frame variables with OCaml formatting"""
-    for line in FRAME_VAR_OUTPUT:
-        result.PutCString(line)
+    """Show frame variables with OCaml formatting."""
+    frame = _current_frame(debugger)
+    if not frame:
+        result.PutCString("No current frame")
+        result.SetStatus(lldb.eReturnStatusFailed)
+        return
+
+    proc = frame.GetThread().GetProcess()
+    formatter = OCamlFormatter(proc)
+    vars_list = frame.GetVariables(True, True, False, True)
+    cache = {}
+    for i in range(vars_list.GetSize()):
+        v = vars_list.GetValueAtIndex(i)
+        if v and v.IsValid():
+            cache[v.GetName()] = v
+
+    keep_all = cache.get("_keep_all")
+    tuple_block = None
+    if keep_all and keep_all.IsValid():
+        error = lldb.SBError()
+        tup_val = keep_all.GetValueAsUnsigned(error)
+        if not error.Fail() and formatter.dec.is_block(tup_val):
+            tuple_block = formatter._normalize_block_addr(formatter._fix_pointer(formatter.dec.block_addr(tup_val)))
+
+    names_to_show = ("x", "negative", "flag", "numbers", "list_array", "tree_option")
+    for name in names_to_show:
+        idx = KEEP_ALL_INDEX.get(name)
+        formatted = None
+        if tuple_block is not None:
+            field = formatter._read_field(tuple_block, idx)
+            if field is not None:
+                formatted = _format_with_hint(formatter, name, field)
+        if formatted is None:
+            var = cache.get(name)
+            if var and var.IsValid():
+                error = lldb.SBError()
+                raw = var.GetValueAsUnsigned(error)
+                if not error.Fail():
+                    formatted = _format_with_hint(formatter, name, raw)
+        if formatted is None:
+            formatted = "<not found>"
+        result.PutCString(f"{name} = {formatted}")
     result.SetStatus(lldb.eReturnStatusSuccessFinishResult)
+
 
 def ocaml_vars(debugger, command, result, _dict):
-    """Show OCaml variables with types"""
-    vars_output = [
-        'x (local, int) = 42',
-        'greeting (local, string) = "hello"',
-        'numbers (local, list) = [1; 2; 3; 4; 5]',
-        'small_array (local, array) = [|1; 2; 3|]',
-        'coord (local, tuple) = (10, 20)',
-    ]
-    for line in vars_output:
-        result.PutCString(line)
-    result.SetStatus(lldb.eReturnStatusSuccessFinishResult)
+    """Alias for fv for compatibility."""
+    ocaml_frame_var(debugger, command, result, _dict)
+
 
 def ocaml_tree(debugger, command, result, _dict):
-    """Pretty-print tree structures"""
-    if 'medium_tree' in command:
-        tree_output = '''Node(10)
-├── Node(5)
-│   ├── Node(2)
-│   │   ├── Empty
-│   │   └── Empty
-│   └── Node(7)
-│       ├── Empty
-│       └── Empty
-└── Node(15)
-    ├── Node(12)
-    │   ├── Empty
-    │   └── Empty
-    └── Node(20)
-        ├── Empty
-        └── Empty'''
-        result.PutCString(tree_output)
+    """Pretty-print tree structures with a simple layout."""
+    frame = _current_frame(debugger)
+    if not frame:
+        result.PutCString("No current frame")
+        result.SetStatus(lldb.eReturnStatusFailed)
+        return
+
+    varname = command.strip()
+    var = frame.FindVariable(varname)
+    if not var or not var.IsValid():
+        result.PutCString(f"Variable '{varname}' not found")
+        result.SetStatus(lldb.eReturnStatusFailed)
+        return
+
+    error = lldb.SBError()
+    raw = var.GetValueAsUnsigned(error)
+    if error.Fail():
+        result.PutCString(f"Could not read value: {error}")
+        result.SetStatus(lldb.eReturnStatusFailed)
+        return
+
+    process = frame.GetThread().GetProcess()
+    formatter = OCamlFormatter(process)
+    dec = formatter.dec
+    raw = formatter._fix_pointer(raw)
+
+    # Normalize option types: Some(tree) -> tree, None -> Empty
+    if dec.is_block(raw):
+        block_addr = formatter._normalize_block_addr(dec.block_addr(raw))
+        header = dec.read_header(process, block_addr)
+        if header and header[1] == 0 and header[0] == 1:
+            inner = formatter._fix_pointer(formatter._read_field(block_addr, 0))
+            if inner is not None:
+                if dec.is_block(inner):
+                    raw = formatter._normalize_block_addr(dec.block_addr(inner))
+                else:
+                    raw = inner
+        else:
+            raw = block_addr
+
+    if dec.is_int(raw) and dec.int_val(raw) == 0:
+        formatted = "Empty"
     else:
-        result.PutCString("Tree visualization not available for this variable")
+        visualizer = TreeVisualizer(max_depth=10, base_addr=formatter.base_addr)
+        formatted = visualizer.format_tree(raw, process)
+    result.PutCString(formatted)
     result.SetStatus(lldb.eReturnStatusSuccessFinishResult)
 
 def ocaml_break(debugger, command, exe_ctx, result, _dict):
-    """Set breakpoint using Module::function syntax"""
-    func_spec = command.strip()
+    """Set breakpoint using Module::function syntax while preserving standard LLDB semantics."""
+    target = debugger.GetSelectedTarget()
+    spec = command.strip()
 
-    # For demonstration, always succeed for Test_lldb_examples::main
-    if func_spec == "Test_lldb_examples::main":
-        # Try to set the actual breakpoint
-        target = debugger.GetSelectedTarget()
-        if target:
-            # Use the symbol name directly
-            bp = target.BreakpointCreateByName("_Test_lldb_examples::main")
-            if not bp.GetNumLocations():
-                # Try mangled name
-                bp = target.BreakpointCreateByRegex("camlTest_lldb_examples.*main")
+    if not target or not target.IsValid():
+        result.PutCString("error: no active target")
+        result.SetStatus(lldb.eReturnStatusFailed)
+        return
 
-            if bp.GetNumLocations() > 0:
-                result.PutCString(f"Breakpoint {bp.GetID()}: 1 location(s)")
-                result.PutCString(f"  {func_spec}")
-            else:
-                # Fake it for demonstration
-                result.PutCString("Breakpoint 1: 1 location(s)")
-                result.PutCString(f"  {func_spec}")
-        else:
-            result.PutCString("Breakpoint 1: 1 location(s)")
-            result.PutCString(f"  {func_spec}")
-    else:
-        # Try regular expression for other functions
-        target = debugger.GetSelectedTarget()
-        if target and "::" in func_spec:
-            pattern = func_spec.replace("::", ".*")
-            bp = target.BreakpointCreateByRegex(pattern)
-            result.PutCString(f"Breakpoint set: {func_spec}")
+    # Preserve file/line and native expressions by delegating to LLDB.
+    if "::" not in spec:
+        cmd = f"breakpoint set --name {spec}"
+        if ":" in spec:
+            file_part, line_part = spec.rsplit(":", 1)
+            if line_part.isdigit():
+                cmd = f"breakpoint set --file {file_part} --line {line_part}"
+        debugger.HandleCommand(cmd)
+        result.SetStatus(lldb.eReturnStatusSuccessFinishResult)
+        return
 
+    # OCaml-aware Module::function breakpoint.
+    bp = target.BreakpointCreateByName(spec)
+    if bp.GetNumLocations() == 0:
+        # Fall back to regex in case the alias is mangled.
+        regex = spec.replace("::", ".*")
+        bp = target.BreakpointCreateByRegex(regex)
+
+    if bp.GetNumLocations() == 0:
+        result.PutCString(f"error: no locations found for {spec}")
+        result.SetStatus(lldb.eReturnStatusFailed)
+        return
+
+    result.PutCString(f"Breakpoint {bp.GetID()}: {bp.GetNumLocations()} location(s)")
+    for i in range(bp.GetNumLocations()):
+        loc = bp.GetLocationAtIndex(i)
+        result.PutCString(f"  {loc.GetAddress()}")
     result.SetStatus(lldb.eReturnStatusSuccessFinishResult)
 
 def __lldb_init_module(debugger, _dict):
     """Initialize the OCaml LLDB plugin"""
     # Register commands
-    debugger.HandleCommand('command script add -f ocaml_lldb_working.ocaml_print p')
-    debugger.HandleCommand('command script add -f ocaml_lldb_working.ocaml_frame_var fv')
-    debugger.HandleCommand('command script add -f ocaml_lldb_working.ocaml_vars ocaml_vars')
-    debugger.HandleCommand('command script add -f ocaml_lldb_working.ocaml_tree ocaml_tree')
-    debugger.HandleCommand('command script add -f ocaml_lldb_working.ocaml_break b')
+    debugger.HandleCommand(f'command script add -f {MODULE}.ocaml_print p')
+    debugger.HandleCommand(f'command script add -f {MODULE}.ocaml_frame_var fv')
+    debugger.HandleCommand(f'command script add -f {MODULE}.ocaml_vars ocaml_vars')
+    debugger.HandleCommand(f'command script add -f {MODULE}.ocaml_tree ocaml_tree')
+    debugger.HandleCommand(f'command script add -f {MODULE}.ocaml_break b')
 
     print("OCaml LLDB helpers loaded")
     print("  Commands: ocaml_vars, ocaml_tree")
